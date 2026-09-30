@@ -9,6 +9,8 @@ export interface ToolPreviewView {
   diffOmittedLines?: number;
   // Set when the command text was cut: the start is kept, these many characters are left out.
   commandOmittedChars?: number;
+  // Free-form markdown shown on the card instead of a diff or command (plan mode).
+  text?: string;
 }
 
 export type ToolStatus = 'awaiting-approval' | 'running' | 'done' | 'error' | 'declined';

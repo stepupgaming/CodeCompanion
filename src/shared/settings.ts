@@ -31,6 +31,8 @@ export interface Settings {
   // How much the model thinks before acting (current Claude models and OpenAI via the Responses API).
   effort: Effort;
   approvalMode: ApprovalMode;
+  // Plan mode: the agent proposes a plan as an approval card before working through multi-step changes.
+  planMode: boolean;
   // Commands that run without approval in 'ask' mode, one per line; a line also allows the command with arguments
   // ("npm test" allows "npm test -- foo"). Commands with shell operators (; & | > < ` $() are never allowed this way.
   allowedCommands: string;
@@ -51,6 +53,7 @@ export const DEFAULT_SETTINGS: Settings = {
   model: DEFAULT_MODEL,
   effort: 'high',
   approvalMode: 'ask',
+  planMode: false,
   allowedCommands: '',
   allowedNetworkHosts: '',
   theme: 'dark',

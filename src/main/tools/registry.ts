@@ -1,6 +1,7 @@
 import type { ToolSpec } from '../llm/types';
 import { browserTool } from './browser';
 import { editFileTool, grepTool, listDirectoryTool, readFileTool, writeFileTool } from './files';
+import { proposePlanTool } from './plan';
 import { commandOutputTool, runCommandTool } from './shell';
 import type { AgentTool, ToolContext } from './types';
 import { fetchUrlTool, webSearchTool } from './web';
@@ -20,11 +21,13 @@ const CORE_TOOLS: AgentTool[] = [
 export function availableTools(
   context: Pick<ToolContext, 'browser' | 'codeSearch' | 'webSearch'>,
   extra: AgentTool[] = [],
+  { planMode = false }: { planMode?: boolean } = {},
 ): AgentTool[] {
   return [
     ...CORE_TOOLS,
     ...(context.webSearch ? [webSearchTool] : []),
     ...(context.browser ? [browserTool] : []),
+    ...(planMode ? [proposePlanTool] : []),
     ...extra,
   ];
 }

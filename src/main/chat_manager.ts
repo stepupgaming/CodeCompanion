@@ -265,10 +265,11 @@ export class ChatManager {
       agentFile: saved ? (saved.agentFile ?? null) : (agentFile?.name ?? null),
       tools: () => {
         const { codeSearch, browser, webSearch } = capabilities();
-        return availableTools({ browser, codeSearch: codeSearch?.search ?? null, webSearch }, [
-          ...(codeSearch?.tools ?? []),
-          ...this.deps.mcp.tools(),
-        ]);
+        return availableTools(
+          { browser, codeSearch: codeSearch?.search ?? null, webSearch },
+          [...(codeSearch?.tools ?? []), ...this.deps.mcp.tools()],
+          { planMode: this.deps.settings.get().planMode },
+        );
       },
       transcript: saved?.transcript,
       usage: saved?.usage,

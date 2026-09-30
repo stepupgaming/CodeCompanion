@@ -367,6 +367,8 @@ export class TranscriptView {
         preview.commandOmittedChars ? notice(commandNotice(preview.commandOmittedChars)) : null,
       );
     }
+    // Free-form preview text (the plan in plan mode), rendered as sanitized markdown.
+    if (preview?.text) return trustedHtml('div', 'markdown tool-plan', renderMarkdown(preview.text));
     return null;
   }
 

@@ -14,6 +14,8 @@ The application and installer are named Patch (`Patch.exe` and `Patch-Installer.
 
 - Model Context Protocol (MCP) servers: configure them in Settings (stdio or Streamable HTTP) and their tools are offered to the assistant, always behind an approval card
 
+- Optional **Plan mode**: the assistant proposes what it intends to do as an approval card before multi-step changes
+
 ## Features
 
 - Chat with Claude (Opus 5.5 by default, Sonnet 5.5, Haiku 4.5), OpenAI GPT-6 (Astra, Sol, Luna) or any OpenAI-compatible endpoint, with streaming answers
