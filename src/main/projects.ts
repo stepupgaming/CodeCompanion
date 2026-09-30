@@ -29,8 +29,9 @@ export class ProjectStore {
   }
 
   close(path: string): void {
-    this.openProjects.delete(path);
-    if (this.currentPath === path) this.currentPath = this.openProjects.keys().next().value ?? null;
+    const real = this.real(path);
+    this.openProjects.delete(real);
+    if (this.currentPath === real) this.currentPath = this.openProjects.keys().next().value ?? null;
   }
 
   open(path: string): ProjectInfo {
@@ -76,12 +77,14 @@ export class ProjectStore {
 
   // The project as it is now, or null. Read on every tool call, so a change applies to open chats at once.
   get(path: string): ProjectInfo | null {
-    const project = this.openProjects.get(path) ?? this.projects.find((candidate) => candidate.path === path);
+    const real = this.real(path);
+    const project = this.openProjects.get(real) ?? this.projects.find((candidate) => candidate.path === real);
     return project ? { ...project } : null;
   }
 
   private update(path: string, patch: Partial<ProjectSettings>): ProjectInfo {
-    const project = this.openProjects.get(path) ?? this.projects.find((candidate) => candidate.path === path);
+    const real = this.real(path);
+    const project = this.openProjects.get(real) ?? this.projects.find((candidate) => candidate.path === real);
     if (!project) throw new Error(`Unknown project: ${path}`);
     Object.assign(project, patch);
     this.persist();
@@ -89,9 +92,20 @@ export class ProjectStore {
   }
 
   remove(path: string): void {
-    this.close(path);
-    this.projects = this.projects.filter((project) => project.path !== path);
+    const real = this.real(path);
+    this.close(real);
+    this.projects = this.projects.filter((project) => project.path !== real);
     this.persist();
+  }
+
+  // Callers may pass the path in symlinked form (macOS /var vs /private/var); projects are stored by realpath.
+  private real(path: string): string {
+    const absolute = resolve(path);
+    try {
+      return realpathSync(absolute);
+    } catch {
+      return absolute;
+    }
   }
 
   private persist(): void {

@@ -46,9 +46,6 @@ jobs:
       fail-fast: false
       matrix:
         os: [windows-latest, ubuntu-latest, macos-latest]
-    # Windows is the supported platform for 0.1.0. Linux and macOS report their result without blocking the build
-    # until they have been seen passing (see TASKS.md).
-    continue-on-error: ${{ matrix.os != 'windows-latest' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -65,9 +62,14 @@ jobs:
       - run: npm run typecheck
       - run: npm run test:unit
 
-      - if: runner.os != 'Linux'
-        run: npm run test:e2e
-
-      # Electron needs a display on Linux.
-      - if: runner.os == 'Linux'
-        run: xvfb-run -a npm run test:e2e
+      # Electron needs a display on Linux; macOS e2e is the one known failure on hosted runners: node-pty cannot
+      # spawn the shell there ("posix_spawnp failed"), which predates this workflow change and needs a debugging
+      # session on macOS. Everything else is blocking; see TASKS.md.
+      - run: |
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            xvfb-run -a npm run test:e2e
+          else
+            npm run test:e2e
+          fi
+        shell: bash
+        continue-on-error: ${{ runner.os == 'macOS' }}

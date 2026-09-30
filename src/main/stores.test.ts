@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -321,6 +321,19 @@ describe('ProjectStore', () => {
     store.setInstructions(first, 'Keep the original project instructions');
     expect(new ProjectStore(file).open(first).instructions).toBe('Keep the original project instructions');
     expect(store.opened()).toHaveLength(21);
+  });
+
+  it('finds projects addressed through a symlinked path (macOS /var vs /private/var)', () => {
+    const target = join(dir, 'real-project');
+    mkdirSync(target);
+    const link = join(dir, 'link-to-project');
+    symlinkSync(target, link, 'junction');
+    const store = new ProjectStore(join(dir, 'projects.json'));
+    store.open(link);
+    // Instructions and lookups must work whether the caller passes the link or the real path.
+    expect(store.setInstructions(link, 'Via the link').instructions).toBe('Via the link');
+    expect(store.setInstructions(target, 'Via the real path').instructions).toBe('Via the real path');
+    expect(store.current()?.path).toBe(realpathSync(target));
   });
 
   it('tracks open projects independently of recent order and closes without deleting history', () => {

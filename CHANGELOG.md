@@ -10,6 +10,8 @@ Patch's changes are consolidated below as an unreleased baseline, not published 
 
 ### Added
 
+- Linux and macOS CI jobs are now blocking: every pull request runs typecheck, unit tests and end-to-end tests on all three platforms. The macOS end-to-end step alone stays non-blocking until node-pty can spawn a shell on the hosted runners ("posix_spawnp failed"), a pre-existing environment issue.
+
 - Project skills: markdown files in `.codecompanion/skills/` are listed (name plus first-line description) in the system prompt and loaded on demand through the new `load_skill` tool, keeping the prompt prefix small and cacheable.
 
 - A `task` tool that delegates research to a read-only subagent: a nested agent with its own context window that can read files, list directories, grep and use semantic code search, but cannot edit, run commands or use the network. Its answer comes back as the tool result and its progress streams into the parent chat.
@@ -52,6 +54,8 @@ Patch's changes are consolidated below as an unreleased baseline, not published 
 - On macOS and Linux, "Open in editor" ran `$(...)` and backticks in a file name, because the shell expands them inside double quotes. Such names are now refused.
 
 ### Fixed
+
+- Look up projects by their real path in `ProjectStore` (`setInstructions`, `close`, `remove`): on macOS, `/var/folders` tmp paths realpath to `/private/var/...`, so raw-path lookups missed the stored entry ("Unknown project"). Found by the macOS CI job.
 
 - An overloaded or server error sent inside a Claude stream (after a 200 response) was not retried: the retry check read the generic outer `error` type. It now reads the most specific type or code the SDK puts on the error. 501 and 505 are no longer retried, since they mean the server cannot do this at all.
 - OpenAI-compatible chats: trimming a long history could send a tool result without the assistant message that called it, which strict servers reject, and a single image counted by its base64 length pushed almost everything else out. Trimming now never starts at a tool result, always keeps the step in progress, and counts images at a small fixed size.

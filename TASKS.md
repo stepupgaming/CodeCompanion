@@ -159,3 +159,5 @@ Stopped at the user's request, then prepared this unfinished checkpoint for thei
 - [x] Add plan mode: the agent proposes a plan as an approval card before multi-step changes (opt-in setting, skipped in Auto mode)
 - [x] Add a `task` tool that delegates research to a read-only subagent (own context window, capped turns, progress streamed to the parent)
 - [x] Project skills: markdown files in `.codecompanion/skills/` listed in the system prompt and loaded on demand via `load_skill`
+- [x] Make the Linux and macOS CI jobs blocking once they pass
+- [ ] Fix the macOS end-to-end step on hosted runners (node-pty fails to spawn the shell there: "posix_spawnp failed"); until then that one step stays `continue-on-error` while everything else is blocking
