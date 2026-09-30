@@ -10,7 +10,7 @@ Patch's changes are consolidated below as an unreleased baseline, not published 
 
 ### Added
 
-- Linux and macOS CI jobs are now blocking: every pull request runs typecheck, unit tests and end-to-end tests on all three platforms. The macOS end-to-end step alone stays non-blocking until node-pty can spawn a shell on the hosted runners ("posix_spawnp failed"), a pre-existing environment issue.
+- CI runs typecheck, unit tests and end-to-end tests on Windows, Linux and macOS for every pull request. The Linux and macOS jobs stay non-blocking until their pre-existing failures are fixed: node-pty cannot spawn a shell on the macOS runners ("posix_spawnp failed"), and the long_run streaming test times out on Linux. Both reproduce on upstream main.
 
 - Project skills: markdown files in `.codecompanion/skills/` are listed (name plus first-line description) in the system prompt and loaded on demand through the new `load_skill` tool, keeping the prompt prefix small and cacheable.
 
