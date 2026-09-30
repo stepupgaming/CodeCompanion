@@ -10,6 +10,8 @@ Patch's changes are consolidated below as an unreleased baseline, not published 
 
 ### Added
 
+- A `task` tool that delegates research to a read-only subagent: a nested agent with its own context window that can read files, list directories, grep and use semantic code search, but cannot edit, run commands or use the network. Its answer comes back as the tool result and its progress streams into the parent chat.
+
 - Plan mode (Settings, "Propose a plan before multi-step changes"): the agent calls `propose_plan` and the plan appears as an approval card with rendered markdown. Approving lets the work begin; declining sends the feedback back to the model.
 
 - Model Context Protocol (MCP) client support: configure servers in Settings as JSON (stdio child processes or Streamable HTTP endpoints). Their tools are offered to the agent namespaced as `mcp_<server>_<tool>`, always behind an approval card, and per-server connection status is shown in the dialog.

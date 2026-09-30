@@ -16,6 +16,7 @@ import type { SettingsStore } from './settings';
 import type { EditBackups } from './tools/edit_backups';
 import { availableTools } from './tools/registry';
 import { ShellRunner, shellName } from './tools/shell';
+import { createTaskTool } from './tools/task';
 import { confineFileUrl, type BrowserController } from './tools/browser';
 import type { AgentTool, CodeSearch, ToolContext } from './tools/types';
 import type { McpHub } from './tools/mcp';
@@ -252,6 +253,22 @@ export class ChatManager {
         agentFile,
       });
 
+    // The subagent tool closes over the chat's conversation factory and system prompt; the nested agent shares
+    // the tool list (minus itself, via the read-only filter).
+    const sessionTools = () => {
+      const { codeSearch, browser, webSearch } = capabilities();
+      return availableTools(
+        { browser, codeSearch: codeSearch?.search ?? null, webSearch },
+        [...(codeSearch?.tools ?? []), ...this.deps.mcp.tools(), taskTool],
+        { planMode: this.deps.settings.get().planMode },
+      );
+    };
+    const taskTool = createTaskTool({
+      createConversation: () => this.deps.llm.createConversation(),
+      system,
+      tools: sessionTools,
+    });
+
     const session: ChatSession = new ChatSession({
       id: saved?.id,
       title: saved?.title,
@@ -263,14 +280,7 @@ export class ChatManager {
         (conversation.provider === 'anthropic' || !this.deps.settings.get().openaiBaseUrl.trim()),
       system,
       agentFile: saved ? (saved.agentFile ?? null) : (agentFile?.name ?? null),
-      tools: () => {
-        const { codeSearch, browser, webSearch } = capabilities();
-        return availableTools(
-          { browser, codeSearch: codeSearch?.search ?? null, webSearch },
-          [...(codeSearch?.tools ?? []), ...this.deps.mcp.tools()],
-          { planMode: this.deps.settings.get().planMode },
-        );
-      },
+      tools: sessionTools,
       transcript: saved?.transcript,
       usage: saved?.usage,
       readFiles: saved?.readFiles,

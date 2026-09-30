@@ -8,6 +8,8 @@ import { abortableSleep, MAX_RETRIES, retryDecision } from './retry';
 
 // Safety net against a model that never stops calling tools.
 const MAX_TURNS = 200;
+// Subagents get a tighter cap: they answer one delegated question, not open-ended tasks.
+export const SUBAGENT_MAX_TURNS = 25;
 const RESUME_INSTRUCTION =
   'Continue the task that I stopped. Use the completed conversation and tool results above; do not repeat the original request. Some interrupted tool actions may have completed even when their result says they were stopped, so inspect the current state before repeating any action with side effects.';
 
@@ -34,6 +36,8 @@ export interface AgentOptions {
   // Called after every tool-result batch is appended to the conversation, so a crash mid-task can be resumed
   // from the last completed batch instead of losing the whole run.
   onCheckpoint?: () => void;
+  // Defaults to MAX_TURNS; subagents run with a tighter cap.
+  maxTurns?: number;
   emit: (event: ChatEvent) => void;
   // Called when a tool call is rejected because required fields are missing, so the failure rate can be measured.
   onDroppedFields?: (error: DroppedFieldError) => void;
@@ -80,7 +84,8 @@ export class Agent {
   private async run(signal: AbortSignal): Promise<boolean> {
     const { conversation, emit } = this.options;
 
-    for (let turn = 0; turn < MAX_TURNS; turn++) {
+    const maxTurns = this.options.maxTurns ?? MAX_TURNS;
+    for (let turn = 0; turn < maxTurns; turn++) {
       if (signal.aborted) return true;
       const tools = this.options.tools();
       const { result, messageId } = await this.runTurnWithRetries(tools, signal);
@@ -147,7 +152,7 @@ export class Agent {
       if (stop || signal.aborted) return signal.aborted;
     }
 
-    emit({ type: 'notice', id: randomUUID(), text: `Stopped after ${MAX_TURNS} steps.` });
+    emit({ type: 'notice', id: randomUUID(), text: `Stopped after ${maxTurns} steps.` });
     return false;
   }
 

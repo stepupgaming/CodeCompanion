@@ -157,3 +157,4 @@ Stopped at the user's request, then prepared this unfinished checkpoint for thei
 - [x] Resume tasks interrupted by a crash: checkpoint the conversation after every tool batch, detect unanswered tool calls on load, and repair the history with synthetic failed results on resume
 - [x] Support MCP servers: configure them in Settings (JSON), expose their tools as namespaced approval-gated tools, show connection status per server
 - [x] Add plan mode: the agent proposes a plan as an approval card before multi-step changes (opt-in setting, skipped in Auto mode)
+- [x] Add a `task` tool that delegates research to a read-only subagent (own context window, capped turns, progress streamed to the parent)

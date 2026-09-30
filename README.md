@@ -16,6 +16,8 @@ The application and installer are named Patch (`Patch.exe` and `Patch-Installer.
 
 - Optional **Plan mode**: the assistant proposes what it intends to do as an approval card before multi-step changes
 
+- Delegates broad research to a read-only subagent (`task` tool) so the main context stays small; its progress streams into the chat while it works
+
 ## Features
 
 - Chat with Claude (Opus 5.5 by default, Sonnet 5.5, Haiku 4.5), OpenAI GPT-6 (Astra, Sol, Luna) or any OpenAI-compatible endpoint, with streaming answers
