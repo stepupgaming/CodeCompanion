@@ -1,9 +1,10 @@
 import { filterChats, type ChatSummary } from '@shared/chat';
 import { formatCost, MODEL_OPTIONS, type Effort } from '@shared/models';
 import { describeIndexStatus } from '@shared/index_status';
-import type { IndexStatus } from '@shared/ipc';
+import type { IndexStatus, McpStatus } from '@shared/ipc';
 import type { ProjectInfo, ProjectSettings } from '@shared/project';
 import type { SecretName, Settings, SettingsView } from '@shared/settings';
+import { parseMcpServers } from '@shared/settings';
 import { h, icon } from '../dom';
 
 function dialog(title: string, body: HTMLElement, footer: HTMLElement): HTMLDialogElement {
@@ -57,6 +58,7 @@ export interface SettingsDialogActions {
   setSecret(name: SecretName, value: string): Promise<SettingsView>;
   indexStatus(): Promise<IndexStatus>;
   rebuildIndex(): Promise<IndexStatus>;
+  mcpStatus(): Promise<McpStatus[]>;
 }
 
 export function openSettingsDialog(settings: SettingsView, actions: SettingsDialogActions): void {
@@ -188,6 +190,29 @@ export function openSettingsDialog(settings: SettingsView, actions: SettingsDial
     h('div', { class: 'd-flex align-items-center gap-2' }, indexText, reindex),
   );
 
+  const mcpServers = h('textarea', {
+    class: 'form-control font-monospace',
+    rows: 4,
+    value: JSON.stringify(settings.mcpServers, null, 2),
+    placeholder: '[{"name":"docs","transport":"http","url":"https://example.com/mcp"}]',
+  });
+  const mcpStatusText = h('span', { class: 'small text-body-secondary flex-grow-1' }, 'Checking…');
+  actions.mcpStatus().then(
+    (statuses) => {
+      mcpStatusText.textContent = describeMcpStatus(statuses);
+    },
+    () => {
+      mcpStatusText.textContent = 'Status unavailable';
+    },
+  );
+  const mcpSection = h(
+    'div',
+    { class: 'mb-3' },
+    h('div', { class: 'form-label' }, 'MCP servers'),
+    mcpServers,
+    h('div', { class: 'mt-1' }, mcpStatusText),
+  );
+
   const body = h(
     'div',
     {},
@@ -225,6 +250,11 @@ export function openSettingsDialog(settings: SettingsView, actions: SettingsDial
     field('Google search engine id', searchEngine),
     field('Maximum files to index for code search', maxFiles),
     indexSection,
+    field(
+      'MCP servers (JSON)',
+      mcpSection,
+      'Model Context Protocol servers whose tools the agent may use (they always ask for approval). Stdio example: {"name":"fs","transport":"stdio","command":"npx","args":["-y","@modelcontextprotocol/server-filesystem","/tmp"]}.',
+    ),
   );
 
   const save = h('button', { type: 'button', class: 'btn btn-primary' }, 'Save');
@@ -258,6 +288,7 @@ export function openSettingsDialog(settings: SettingsView, actions: SettingsDial
         googleSearchEngineId: searchEngine.value.trim(),
         editorCommand: editor.value.trim(),
         maxIndexedFiles: Number(maxFiles.value),
+        mcpServers: parseMcpServers(mcpServers.value),
       });
       element.close();
     } catch (err) {
@@ -458,4 +489,16 @@ export function openHistoryDialog(chats: ChatSummary[], actions: HistoryDialogAc
   const element = dialog('Chat history', h('div', {}, search, list), clearButton);
   element.addEventListener('close', () => clearTimeout(searchTimer));
   search.focus();
+}
+
+// One line per server for the settings dialog: "docs: connected — 3 tools" or the error.
+function describeMcpStatus(statuses: McpStatus[]): string {
+  if (statuses.length === 0) return 'No MCP servers configured.';
+  return statuses
+    .map((server) => {
+      const state =
+        server.state === 'connected' ? `connected — ${server.tools.length} tool(s)` : `error: ${server.error}`;
+      return `${server.name}: ${state}`;
+    })
+    .join(' | ');
 }

@@ -1,5 +1,14 @@
 import { EventEmitter } from 'node:events';
-import { DEFAULT_SETTINGS, SECRET_NAMES, type SecretName, type Settings, type SettingsView } from '@shared/settings';
+import {
+  DEFAULT_SETTINGS,
+  sanitizeMcpServers,
+  SECRET_NAMES,
+  parseMcpServers,
+  type McpServerConfig,
+  type SecretName,
+  type Settings,
+  type SettingsView,
+} from '@shared/settings';
 import { readJson, writeJson } from './storage/json_file';
 
 // Encrypts secrets at rest. In the app this is Electron's safeStorage (OS keychain / DPAPI); tests inject
@@ -48,7 +57,11 @@ export class SettingsStore extends EventEmitter {
   }
 
   update(patch: Partial<Settings>): SettingsView {
-    this.persist(sanitize({ ...this.settings, ...pickKnown(patch) }), this.secrets);
+    const known = pickKnown(patch);
+    // User-entered server config is validated up front so the dialog can show the problem; a silent drop would
+    // hide typos.
+    if ('mcpServers' in known) this.validateMcpServers(known.mcpServers);
+    this.persist(sanitize({ ...this.settings, ...known }), this.secrets);
     return this.view();
   }
 
@@ -100,6 +113,14 @@ export class SettingsStore extends EventEmitter {
     this.secrets = secrets;
     this.emit('change', this.view());
   }
+
+  private validateMcpServers(value: unknown): McpServerConfig[] {
+    try {
+      return parseMcpServers(JSON.stringify(value));
+    } catch (error) {
+      throw error instanceof Error ? error : new Error(String(error));
+    }
+  }
 }
 
 function pickKnown(patch: Partial<Settings>): Partial<Settings> {
@@ -120,5 +141,6 @@ function sanitize(settings: Settings): Settings {
   if (!['low', 'medium', 'high', 'xhigh', 'max'].includes(result.effort)) result.effort = DEFAULT_SETTINGS.effort;
   result.maxIndexedFiles = Math.max(1, Math.floor(result.maxIndexedFiles));
   result.model = result.model.trim() || DEFAULT_SETTINGS.model;
+  result.mcpServers = sanitizeMcpServers(result.mcpServers);
   return result;
 }

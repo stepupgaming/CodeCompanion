@@ -30,5 +30,5 @@ export function availableTools(
 }
 
 export function toToolSpecs(tools: AgentTool[]): ToolSpec[] {
-  return tools.map(({ name, description, schema }) => ({ name, description, schema }));
+  return tools.map(({ name, description, schema, jsonSchema }) => ({ name, description, schema, jsonSchema }));
 }

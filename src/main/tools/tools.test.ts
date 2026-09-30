@@ -40,7 +40,7 @@ function makeContext(): ToolContext {
 
 // Runs a tool the way the agent does: validate the input first.
 async function call(tool: AgentTool, input: unknown, ctx = context) {
-  return tool.run(tool.schema.parse(input), ctx);
+  return tool.run(tool.schema!.parse(input), ctx);
 }
 
 beforeEach(() => {
@@ -289,7 +289,7 @@ describe('file tools', () => {
 
   it('previews writes as a diff', async () => {
     const preview = await writeFileTool.preview!(
-      writeFileTool.schema.parse({ path: 'new.txt', content: 'hello\n' }),
+      writeFileTool.schema!.parse({ path: 'new.txt', content: 'hello\n' }),
       context,
     );
     expect(preview.title).toBe('Create new.txt');

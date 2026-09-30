@@ -516,6 +516,7 @@ export class App {
       setSecret: (name, value) => api.invoke('settings:set-secret', name, value),
       indexStatus: () => api.invoke('index:status'),
       rebuildIndex: () => api.invoke('index:rebuild'),
+      mcpStatus: () => api.invoke('mcp:status'),
     });
   }
 

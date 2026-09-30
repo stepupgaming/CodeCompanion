@@ -10,6 +10,8 @@ Patch's changes are consolidated below as an unreleased baseline, not published 
 
 ### Added
 
+- Model Context Protocol (MCP) client support: configure servers in Settings as JSON (stdio child processes or Streamable HTTP endpoints). Their tools are offered to the agent namespaced as `mcp_<server>_<tool>`, always behind an approval card, and per-server connection status is shown in the dialog.
+
 - A task interrupted by a crash can be resumed: the conversation is checkpointed after every tool batch, and on load a chat whose history ends with unanswered tool calls offers Resume, which repairs the history with synthetic failed results and continues.
 
 - Desktop coding assistant with streaming Claude, OpenAI Responses API and OpenAI-compatible chat, configurable models and reasoning effort.

@@ -7,7 +7,17 @@ export type { CompactionPlan, CompactionState } from './compaction';
 export interface ToolSpec {
   name: string;
   description: string;
-  schema: z.ZodObject<z.ZodRawShape>;
+  // Built-in tools declare a Zod schema; MCP tools arrive with a JSON Schema instead. One of the two is required.
+  schema?: z.ZodObject<z.ZodRawShape>;
+  jsonSchema?: JsonObjectSchema;
+}
+
+// A JSON Schema for an object-shaped tool input, as the providers expect it.
+export interface JsonObjectSchema {
+  type: 'object';
+  properties?: Record<string, unknown>;
+  required?: string[];
+  [key: string]: unknown;
 }
 
 export interface ImageData {

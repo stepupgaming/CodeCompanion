@@ -96,6 +96,7 @@ Before tagging, use the built app once against the real Anthropic and OpenAI API
 | Log a crash or problem                                           | `appLog.error(source, error, context)` from `src/main/app_log.ts`; see "Crash and error log" under Debugging                                                                                         |
 | Add an item to the menu                                          | `src/main/menu.ts` (`MenuCommand` in `src/shared/ipc.ts` if the renderer must react)                                                                                                                 |
 | UI                                                               | `src/renderer/src/app.ts`, `views/`, `styles.css`                                                                                                                                                    |
+| Change MCP server handling                                       | `McpHub` in `src/main/tools/mcp.ts`; config type in `src/shared/settings.ts`                                                                                                                         |
 
 ## Conventions
 

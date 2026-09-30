@@ -16,6 +16,7 @@ import { buildMenu } from './menu';
 import { ProjectStore } from './projects';
 import { RendererErrorReporter } from './renderer_errors';
 import { SettingsStore } from './settings';
+import { McpHub } from './tools/mcp';
 import { Workspace } from './tools/workspace';
 import type { IndexStatus } from '@shared/ipc';
 import { BrowserService } from './panels/browser';
@@ -92,6 +93,15 @@ function start(): void {
   // A changed key or endpoint means new embeddings; drop cached indexes so they are rebuilt with the new client.
   settings.on('change', () => codeIndexes.clear());
 
+  const mcp = new McpHub(
+    () => settings.get().mcpServers,
+    () => send(mainWindow, 'app:notice', 'MCP servers updated'),
+  );
+  // Not awaited: connections happen in the background and the tool list refreshes when they settle.
+  mcp.start();
+  // Edited server config reconnects the changed servers; the next turn picks up their tools.
+  settings.on('change', () => mcp.start());
+
   const indexFor = (workspace: Workspace): CodeIndex | null => {
     // Embeddings use the OpenAI API, so semantic search is offered only when that key is set.
     const key = settings.getSecret('openaiApiKey');
@@ -132,6 +142,7 @@ function start(): void {
       const index = indexFor(workspace);
       return index ? { search: index, tools: [searchCodeTool(index)] } : null;
     },
+    mcp,
     emit: (event, chatId) => {
       // Model and provider failures shown in the chat (the error text, not the conversation).
       if (event.type === 'error') appLog.error('chat', event.text);
@@ -168,6 +179,8 @@ function start(): void {
     const { index, reason } = currentIndex();
     return indexStatus(index, reason);
   });
+
+  handle('mcp:status', () => mcp.status());
   handle('index:rebuild', async () => {
     const { index, reason } = currentIndex();
     if (!index) throw new Error(reason);
@@ -280,6 +293,7 @@ function start(): void {
   app.on('before-quit', () => {
     manager.dispose();
     terminal.stop();
+    void mcp.stop();
   });
 }
 

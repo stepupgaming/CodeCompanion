@@ -7,7 +7,9 @@
 import type { ApprovalDecision, ChatEvent, ChatSnapshot, ChatSummary, UserMessage } from './chat';
 import type { GitStatus, PanelName } from './panels';
 import type { ProjectInfo, ProjectSettings } from './project';
-import type { SecretName, Settings, SettingsView } from './settings';
+import type { SecretName, Settings, SettingsView, McpStatus } from './settings';
+
+export type { McpStatus };
 
 export interface AppInfo {
   version: string;
@@ -53,6 +55,9 @@ export interface InvokeApi {
 
   'index:status': () => IndexStatus;
   'index:rebuild': () => IndexStatus;
+
+  // Connection state and tool names of each configured Model Context Protocol server.
+  'mcp:status': () => McpStatus[];
 
   'project:choose': () => ProjectInfo | null;
   'project:open': (path: string) => ProjectInfo;
@@ -126,6 +131,7 @@ const INVOKE: Record<InvokeChannel, true> = {
   'settings:set-secret': true,
   'index:status': true,
   'index:rebuild': true,
+  'mcp:status': true,
   'project:choose': true,
   'project:open': true,
   'project:current': true,

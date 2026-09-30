@@ -256,9 +256,10 @@ export class Agent {
       return { result: { id: call.id, content: `Unknown tool: ${call.name}`, isError: true } };
     }
 
-    // Streamed tool inputs are not validated by the API, so check them here before doing anything.
-    const parsed = tool.schema.safeParse(call.input);
-    if (!parsed.success) {
+    // Streamed tool inputs are not validated by the API, so check them here before doing anything. Zod for
+    // built-in tools; for MCP tools (JSON Schema only) a structural check, since the server validates the rest.
+    const parsed = tool.schema?.safeParse(call.input);
+    if (parsed && !parsed.success) {
       const missing: string[] = [];
       const invalid: string[] = [];
       const issues = parsed.error.issues
@@ -284,12 +285,22 @@ export class Agent {
       return {
         result: {
           id: call.id,
-          content: `Invalid input for ${call.name}: ${issues}.${received} Send every required field and try again.`,
+          content: `Invalid input for ${tool.name}: ${issues}.${received} Send every required field and try again.`,
           isError: true,
         },
       };
     }
-    const input = parsed.data;
+    const schemaProblem = parsed ? undefined : jsonSchemaProblem(tool, call.input);
+    if (schemaProblem) {
+      return {
+        result: {
+          id: call.id,
+          content: `Invalid input for ${tool.name}: ${schemaProblem} Send every required field and try again.`,
+          isError: true,
+        },
+      };
+    }
+    const input = (parsed?.success ? parsed.data : call.input) as Record<string, unknown>;
     const onProgress = (text: string) => emit({ type: 'tool-progress', id: eventId, text });
     const context = this.options.toolContext(signal, onProgress);
 
@@ -354,4 +365,17 @@ export class Agent {
       return { result: { id: call.id, content: expected ? message : `Error: ${message}`, isError: true } };
     }
   }
+}
+
+// Structural check for tools that only declare a JSON Schema (MCP): the server validates the input fully when the
+// call arrives, but catching obviously broken input here saves a round trip and reads better in the transcript.
+function jsonSchemaProblem(tool: AgentTool, input: unknown): string | null {
+  if (!tool.jsonSchema) return null;
+  if (typeof input !== 'object' || input === null || Array.isArray(input)) {
+    return 'input must be a JSON object.';
+  }
+  const missing = (tool.jsonSchema.required ?? []).filter(
+    (key) => (input as Record<string, unknown>)[key] === undefined,
+  );
+  return missing.length > 0 ? `${missing.join(', ')}: required but missing.` : null;
 }

@@ -18,6 +18,7 @@ import { availableTools } from './tools/registry';
 import { ShellRunner, shellName } from './tools/shell';
 import { confineFileUrl, type BrowserController } from './tools/browser';
 import type { AgentTool, CodeSearch, ToolContext } from './tools/types';
+import type { McpHub } from './tools/mcp';
 import { Workspace } from './tools/workspace';
 
 export interface ChatManagerDeps {
@@ -27,6 +28,7 @@ export interface ChatManagerDeps {
   llm: LlmService;
   browser: () => BrowserController | null;
   codeSearch: (workspace: Workspace) => { search: CodeSearch; tools: AgentTool[] } | null;
+  mcp: McpHub;
   emit: (event: ChatEvent, chatId: string) => void;
   onSnapshot: (snapshot: ChatSnapshot) => void;
   onHistoryChanged: () => void;
@@ -263,7 +265,10 @@ export class ChatManager {
       agentFile: saved ? (saved.agentFile ?? null) : (agentFile?.name ?? null),
       tools: () => {
         const { codeSearch, browser, webSearch } = capabilities();
-        return availableTools({ browser, codeSearch: codeSearch?.search ?? null, webSearch }, codeSearch?.tools ?? []);
+        return availableTools({ browser, codeSearch: codeSearch?.search ?? null, webSearch }, [
+          ...(codeSearch?.tools ?? []),
+          ...this.deps.mcp.tools(),
+        ]);
       },
       transcript: saved?.transcript,
       usage: saved?.usage,

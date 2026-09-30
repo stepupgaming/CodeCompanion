@@ -1,17 +1,13 @@
 {
-  "name": "patch",
-  "productName": "Patch",
-  "version": "0.3.0",
+  "name": "codecompanion",
+  "productName": "CodeCompanion",
+  "version": "0.2.0",
   "description": "AI coding assistant desktop app",
   "author": "PierrunoYT <pierrebruno@hotmail.ch>",
   "license": "MIT",
   "main": "out/main/index.js",
-  "engines": {
-    "node": ">=22.12"
-  },
   "scripts": {
     "dev": "electron-vite dev",
-    "icons": "node scripts/generate-icons.mjs",
     "build": "electron-vite build",
     "start": "electron-vite build && electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
@@ -22,28 +18,21 @@
     "test:unit": "vitest run --project unit --passWithNoTests",
     "test:e2e": "npm run build && vitest run --project e2e",
     "perf": "npm run build && vitest run --project perf",
-    "pack": "node scripts/ensure-closed.mjs && npm run build && electron-builder --dir --publish never",
-    "dist": "node scripts/ensure-closed.mjs && npm run build && electron-builder --publish never"
+    "pack": "node scripts/ensure-closed.mjs && npm run build && electron-builder --dir",
+    "dist": "node scripts/ensure-closed.mjs && npm run build && electron-builder"
   },
   "build": {
     "appId": "codecompanion",
-    "productName": "Patch",
+    "productName": "CodeCompanion",
     "files": [
       "out/**",
       "package.json"
-    ],
-    "extraResources": [
-      {
-        "from": "build/icon.png",
-        "to": "icon.png"
-      }
     ],
     "asarUnpack": [
       "node_modules/node-pty/**"
     ],
     "npmRebuild": false,
     "mac": {
-      "icon": "build/icon.icns",
       "target": [
         {
           "target": "default",
@@ -60,7 +49,6 @@
       "gatekeeperAssess": false
     },
     "win": {
-      "icon": "build/icon.ico",
       "target": [
         {
           "target": "nsis",
@@ -85,7 +73,6 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@resvg/resvg-js": "^2.6.2",
     "@types/node": "^24.19.0",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
@@ -115,6 +102,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.129.0",
+    "@modelcontextprotocol/sdk": "^1.31.0",
     "@mozilla/readability": "^0.6.0",
     "diff": "^9.0.0",
     "ignore": "^7.0.10",
