@@ -24,7 +24,9 @@ describe('crash and error log', () => {
   });
 
   it('notes each start with the versions', async () => {
-    await vi.waitFor(() => expect(entries().find((entry) => entry.source === 'app')).toMatchObject({ level: 'info', message: 'Started.' }));
+    await vi.waitFor(() =>
+      expect(entries().find((entry) => entry.source === 'app')).toMatchObject({ level: 'info', message: 'Started.' }),
+    );
     expect(entries().find((entry) => entry.source === 'app')?.context).toMatchObject({ platform: process.platform });
   });
 
@@ -70,7 +72,7 @@ describe('crash and error log', () => {
       };
       try {
         const help = Menu.getApplicationMenu()?.items.find((item) => item.role === 'help');
-        help?.submenu?.items[0].click();
+        help?.submenu?.items[0]!.click();
         await new Promise((resolve) => setTimeout(resolve, 50));
       } finally {
         shell.openPath = original;

@@ -82,7 +82,10 @@ export class MockClaude {
         res.writeHead(200, { 'content-type': 'text/event-stream' });
         if ('hang' in turn) {
           // Everything up to the text, without the block, message end and stop events.
-          for (const { event, data } of anthropicStream([{ type: 'text', text: turn.hang.text }], 'end_turn').slice(0, -3)) {
+          for (const { event, data } of anthropicStream([{ type: 'text', text: turn.hang.text }], 'end_turn').slice(
+            0,
+            -3,
+          )) {
             res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
           }
           this.hanging = true;
@@ -92,7 +95,8 @@ export class MockClaude {
         if ('slow' in turn) {
           const { text, chunks, intervalMs } = turn.slow;
           const events = anthropicStream([{ type: 'text', text: '' }], 'end_turn');
-          const send = ({ event, data }: { event: string; data: unknown }) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+          const send = ({ event, data }: { event: string; data: unknown }) =>
+            res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
           // message_start and content_block_start, then the deltas, then the rest without the empty delta.
           events.slice(0, 2).forEach(send);
           const size = Math.ceil(text.length / chunks);
@@ -104,7 +108,14 @@ export class MockClaude {
               res.end();
               return;
             }
-            send({ event: 'content_block_delta', data: { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: text.slice(index * size, (index + 1) * size) } } });
+            send({
+              event: 'content_block_delta',
+              data: {
+                type: 'content_block_delta',
+                index: 0,
+                delta: { type: 'text_delta', text: text.slice(index * size, (index + 1) * size) },
+              },
+            });
             index++;
           }, intervalMs);
           res.on('close', () => clearInterval(timer));

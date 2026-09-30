@@ -6,13 +6,13 @@ A short guide to the parts that need explaining: approvals, allow-lists, stoppin
 
 1. **File → Open Project…** (`Ctrl+O`) and pick a folder. The assistant can only read and change files inside it.
 2. Open **Settings** (gear icon, `Ctrl+,`) and add an API key: Anthropic for Claude models, OpenAI for GPT-6 models and for semantic code search. Keys are encrypted when system encryption is available; Settings warns about plaintext storage if encryption is unavailable or migration fails. Existing plaintext keys are migrated when encryption becomes available. Stored keys are never shown again; type a new one to replace it, or press **Remove**.
-3. Type a task in the box at the bottom and press `Enter` (`Shift+Enter` for a new line). Attach or paste images with the paperclip button (PNG, JPEG, GIF or WebP, up to 5 MB each, whether attached or pasted). All built-in models accept images. For a Claude model id entered under *Other model id…* that the app does not know, the paperclip is disabled, pasting an image shows why, and images already in the draft are marked and cannot be sent: start a new chat with a built-in model to use them. OpenAI-compatible endpoints are not checked, since the app cannot know what their models accept; the endpoint's own error is shown if it refuses.
+3. Type a task in the box at the bottom and press `Enter` (`Shift+Enter` for a new line). Attach or paste images with the paperclip button (PNG, JPEG, GIF or WebP, up to 5 MB each, whether attached or pasted). All built-in models accept images. For a Claude model id entered under _Other model id…_ that the app does not know, the paperclip is disabled, pasting an image shows why, and images already in the draft are marked and cannot be sent: start a new chat with a built-in model to use them. OpenAI-compatible endpoints are not checked, since the app cannot know what their models accept; the endpoint's own error is shown if it refuses.
 
 Each chat keeps the model it started with. Changing the model in Settings applies to new chats.
 
 ### Tell it about your project
 
-- **Project instructions**: the project menu (the folder button at the top) → *Project settings…*. The text is added to every new chat in that project, e.g. "Run `npm test` after changes" or "Never edit `generated/`".
+- **Project instructions**: the project menu (the folder button at the top) → _Project settings…_. The text is added to every new chat in that project, e.g. "Run `npm test` after changes" or "Never edit `generated/`".
 - **`AGENTS.md`** (or `CLAUDE.md`) in the project root is added to every chat automatically. The status bar shows "AGENTS.md loaded".
 
 Both are prompt text, not enforced rules: the assistant can still get them wrong, which is why approvals exist.
@@ -21,11 +21,11 @@ Both are prompt text, not enforced rules: the assistant can still get them wrong
 
 By default the assistant asks before it changes anything. A card appears in the chat showing what it wants to do, with **Approve** and **Decline** buttons.
 
-| It wants to… | What you see |
-|---|---|
-| Edit or create a file (`edit_file`, `write_file`) | The diff |
-| Run a command (`run_command`) | The command text |
-| Fetch a page or use the browser (`fetch_url`, `browser`) | The URL |
+| It wants to…                                             | What you see     |
+| -------------------------------------------------------- | ---------------- |
+| Edit or create a file (`edit_file`, `write_file`)        | The diff         |
+| Run a command (`run_command`)                            | The command text |
+| Fetch a page or use the browser (`fetch_url`, `browser`) | The URL          |
 
 Reading files, listing folders, searching the code and web search never ask.
 
@@ -126,7 +126,7 @@ Press it to have the older turns summarized. Standard provider chats use a small
 
 ### Export
 
-The download button in the chat header (*Export chat*) asks where to save and writes the chat as a Markdown file: your messages, the assistant's answers, and the diffs and commands it proposed (an edit you undid is marked "(undone)"). Tool output and the assistant's thinking are left out.
+The download button in the chat header (_Export chat_) asks where to save and writes the chat as a Markdown file: your messages, the assistant's answers, and the diffs and commands it proposed (an edit you undid is marked "(undone)"). Tool output and the assistant's thinking are left out.
 
 ## Settings
 

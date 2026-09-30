@@ -25,6 +25,7 @@ export class RendererErrorReporter {
     // Without a stack from the UI, an empty one keeps this file's own stack out of the log.
     error.stack = typeof stack === 'string' ? stack.slice(0, MAX_STACK) : '';
     this.log.error('renderer', error);
-    if (this.count === this.limit) this.log.warn('renderer', `Reached ${this.limit} UI errors; later ones are not logged.`);
+    if (this.count === this.limit)
+      this.log.warn('renderer', `Reached ${this.limit} UI errors; later ones are not logged.`);
   }
 }

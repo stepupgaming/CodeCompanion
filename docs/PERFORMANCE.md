@@ -28,37 +28,39 @@ Machine: Intel Core Ultra 9 285K (24 threads), 47 GB RAM, Windows 11, Electron 4
 
 1,000 turns (5,000 items):
 
-| | DOM nodes | Open | Frame p50 / p95 while streaming | Layout / style during the stream |
-|---|---|---|---|---|
-| Empty chat (reference) | 1.8k | — | 7 / 14 ms | 0.48 s / 0.32 s |
-| Before | 456k | 3,205 ms | 42 / 49 ms (~24 fps) | 1.94 s / 0.20 s |
-| + `content-visibility: auto` | 456k | 2,472 ms | 28 / 35 ms | 0.62 s / 3.02 s |
-| + update changed items in place | 456k | 2,465 ms | 7 / 14 ms | 0.07 s / 0.05 s |
-| + build card bodies on first expand | 166k | 1,104 ms | 7 / 14 ms | 0.07 s / 0.05 s |
+|                                     | DOM nodes | Open     | Frame p50 / p95 while streaming | Layout / style during the stream |
+| ----------------------------------- | --------- | -------- | ------------------------------- | -------------------------------- |
+| Empty chat (reference)              | 1.8k      | —        | 7 / 14 ms                       | 0.48 s / 0.32 s                  |
+| Before                              | 456k      | 3,205 ms | 42 / 49 ms (~24 fps)            | 1.94 s / 0.20 s                  |
+| + `content-visibility: auto`        | 456k      | 2,472 ms | 28 / 35 ms                      | 0.62 s / 3.02 s                  |
+| + update changed items in place     | 456k      | 2,465 ms | 7 / 14 ms                       | 0.07 s / 0.05 s                  |
+| + build card bodies on first expand | 166k      | 1,104 ms | 7 / 14 ms                       | 0.07 s / 0.05 s                  |
 
 250 turns (1,250 items):
 
-| | DOM nodes | Open | Frame p50 / p95 while streaming |
-|---|---|---|---|
-| Before | 114k | 841 ms | 7 / 21 ms |
-| After all three changes | 41.5k | 297 ms | 7 / 7 ms |
+|                         | DOM nodes | Open   | Frame p50 / p95 while streaming |
+| ----------------------- | --------- | ------ | ------------------------------- |
+| Before                  | 114k      | 841 ms | 7 / 21 ms                       |
+| After all three changes | 41.5k     | 297 ms | 7 / 7 ms                        |
 
 ### What was slow, and what changed
 
 1. **Layout of the whole chat on every streamed frame.** The transcript is a flex column, and the message being streamed changes on every frame, so Chromium re-laid out the whole list each time.
-   - *Fix:* `.transcript > *` now has `content-visibility: auto` with `contain-intrinsic-size: auto 80px`. Items off screen are skipped for layout and paint, but stay in the DOM and the accessibility tree.
+   - _Fix:_ `.transcript > *` now has `content-visibility: auto` with `contain-intrinsic-size: auto 80px`. Items off screen are skipped for layout and paint, but stay in the DOM and the accessibility tree.
 2. **Style recalculation of the whole chat on every frame.** This showed up once layout was cheap. Each frame, the streaming message's element was swapped for a new one, which invalidated the styles of its siblings (Bootstrap uses sibling and `:last-child` selectors).
-   - *Fix:* `TranscriptView` now updates a changed item's element in place (`morph`: same element, new attributes and children).
+   - _Fix:_ `TranscriptView` now updates a changed item's element in place (`morph`: same element, new attributes and children).
 3. **Every finished tool card built its diff up front,** even though the card is collapsed. The diffs were most of the DOM (diff2html lays out a table row per line).
-   - *Fix:* a finished card's diff and output are built the first time the card is opened. Approval cards and running cards are unchanged.
+   - _Fix:_ a finished card's diff and output are built the first time the card is opened. Approval cards and running cards are unchanged.
 
 ### Follow-up: scrolling to the bottom (2026-09-30, 0.2.0 audit)
 
 `content-visibility: auto` broke scrolling to the bottom. Items that were off screen count at their 80 px placeholder height until laid out, so:
+
 - opening a chat of 200 tall items landed 3,300 px above the end;
 - a new approval card appended while following the chat left Approve out of view.
 
 The fix:
+
 - after a chat is opened, the view jumps to the bottom again for 10 frames, and for 2 frames after an item is added;
 - a view at the bottom stays there when the scroll area gets smaller;
 - the user's own scrolling ends all of this.
@@ -67,14 +69,15 @@ The fix:
 
 **Cost, from three runs of each variant:**
 
-| Streaming, frame p50 / p95 | 250 turns | 1,000 turns |
-|---|---|---|
-| Before the fix | 7 / 7 ms | 7 / 14 ms (one run in three: 21 / 28 ms) |
-| With the fix | 7 / 21 ms | 14–21 / 28 ms |
+| Streaming, frame p50 / p95 | 250 turns | 1,000 turns                              |
+| -------------------------- | --------- | ---------------------------------------- |
+| Before the fix             | 7 / 7 ms  | 7 / 14 ms (one run in three: 21 / 28 ms) |
+| With the fix               | 7 / 21 ms | 14–21 / 28 ms                            |
 
 Opening times are unchanged. For comparison, the same 1,000-turn chat was at 42 / 49 ms before the three changes above.
 
 **Other ways that were measured and dropped:** each made streaming in the 1,000-turn chat two to three times slower.
+
 - following every height change, with a frame loop or with a ResizeObserver on the transcript;
 - laying out the newest items with an inline `content-visibility` style.
 
@@ -117,14 +120,14 @@ bookkeeping to part of layout cost, not the observed frame regression.
 
 Reproduced on the Windows machine (1,000 turns, three runs per variant, layout time during the stream):
 
-| Variant | Frame p50 / p95 | Layout |
-|---|---|---|
-| Before the scroll fix (`ed40da2`) | 7 / 7 ms | 74–77 ms |
-| Current (`af50695`) | 14–21 / 21 ms | 1,161–1,203 ms |
-| Current, without the focus check in `render()` | 14–21 / 21 ms | 1,157–1,193 ms |
-| Current, without the `ResizeObserver` | 14–21 / 21 ms | 1,175–1,187 ms |
-| Current, with block layout instead of flex for `.transcript` | 14–21 / 21 ms | 1,084–1,087 ms |
-| Current, without any scroll-to-bottom writes | 7 / 7 ms | 77 ms |
+| Variant                                                      | Frame p50 / p95 | Layout         |
+| ------------------------------------------------------------ | --------------- | -------------- |
+| Before the scroll fix (`ed40da2`)                            | 7 / 7 ms        | 74–77 ms       |
+| Current (`af50695`)                                          | 14–21 / 21 ms   | 1,161–1,203 ms |
+| Current, without the focus check in `render()`               | 14–21 / 21 ms   | 1,157–1,193 ms |
+| Current, without the `ResizeObserver`                        | 14–21 / 21 ms   | 1,175–1,187 ms |
+| Current, with block layout instead of flex for `.transcript` | 14–21 / 21 ms   | 1,084–1,087 ms |
+| Current, without any scroll-to-bottom writes                 | 7 / 7 ms        | 77 ms          |
 
 Finding: the regression is not a cost of the new code. Before the scroll fix, the jump to the bottom landed short, so the
 view was not at the bottom, `stick` was false and the streamed answer sat off screen, where `content-visibility` skips
@@ -163,20 +166,20 @@ items into a few `content-visibility` chunks, so fewer elements take part in eac
 
 Same machine as above. The numbers were stable across three runs.
 
-| Chat | Per streamed piece | One whole answer (1,594 pieces) | Of that, `applyChatEvent` |
-|---|---|---|---|
-| empty | 1 µs | 1 ms | 0.2 ms |
-| 1,250 items | 8 µs | 12 ms | 11 ms |
-| 5,000 items | 30 µs | 48 ms | 35 ms |
-| 20,000 items | 230 µs | 370 ms | 355 ms |
+| Chat         | Per streamed piece | One whole answer (1,594 pieces) | Of that, `applyChatEvent` |
+| ------------ | ------------------ | ------------------------------- | ------------------------- |
+| empty        | 1 µs               | 1 ms                            | 0.2 ms                    |
+| 1,250 items  | 8 µs               | 12 ms                           | 11 ms                     |
+| 5,000 items  | 30 µs              | 48 ms                           | 35 ms                     |
+| 20,000 items | 230 µs             | 370 ms                          | 355 ms                    |
 
 - **Serializing the events for the UI:** 0.2 ms per answer at every size.
 - **Main-process CPU in the real app:** measured while the 1,000-turn benchmark streams its answer, in 400 pieces over about 2 s.
 
-  | Chat | Main-process CPU |
-  |---|---|
-  | empty | 251–254 ms |
-  | 5,000 items | 192–222 ms |
+  | Chat        | Main-process CPU |
+  | ----------- | ---------------- |
+  | empty       | 251–254 ms       |
+  | 5,000 items | 192–222 ms       |
 
   The difference is within the noise. The transcript copies cost about 12 ms of that stream, which is lost among the rest of the main process's work: parsing the stream, IPC and saving.
 

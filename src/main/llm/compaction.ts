@@ -47,8 +47,8 @@ export function planCompaction<T>(
   let tail = 0;
   let cut = -1;
   for (let index = messages.length - 1; index > start; index--) {
-    tail += sizes[index];
-    if (tail >= KEEP_TAIL_CHARS && adapter.safeCut(messages[index], index, messages)) {
+    tail += sizes[index] ?? 0;
+    if (tail >= KEEP_TAIL_CHARS && adapter.safeCut(messages[index]!, index, messages)) {
       cut = index;
       break;
     }
@@ -63,7 +63,12 @@ export function planCompaction<T>(
 }
 
 // Checks an answer before it is stored: the cut must move forward and stay inside the history.
-export function nextState(state: CompactionState | null, messageCount: number, summary: string, keepFrom: number): CompactionState {
+export function nextState(
+  state: CompactionState | null,
+  messageCount: number,
+  summary: string,
+  keepFrom: number,
+): CompactionState {
   const text = summary.trim();
   if (!text) throw new Error('The summary was empty.');
   if (keepFrom <= (state?.keepFrom ?? 0) || keepFrom >= messageCount) {

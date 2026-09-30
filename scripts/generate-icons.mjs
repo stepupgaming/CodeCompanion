@@ -3,10 +3,9 @@ import { Resvg } from '@resvg/resvg-js';
 
 const source = await readFile(new URL('../assets/logo-icon.svg', import.meta.url));
 const sizes = [16, 24, 32, 48, 64, 128, 256, 512, 1024];
-const images = new Map(sizes.map((size) => [
-  size,
-  new Resvg(source, { fitTo: { mode: 'width', value: size } }).render().asPng(),
-]));
+const images = new Map(
+  sizes.map((size) => [size, new Resvg(source, { fitTo: { mode: 'width', value: size } }).render().asPng()]),
+);
 const save = (name, bytes) => writeFile(new URL(`../build/${name}`, import.meta.url), bytes);
 
 // ICO directory entries point to independently rasterized PNGs, including small taskbar sizes.
@@ -28,7 +27,15 @@ for (const [index, size] of windowsSizes.entries()) {
 await save('icon.ico', Buffer.concat([directory, ...windowsSizes.map((size) => images.get(size))]));
 
 // Modern ICNS PNG representations, including Retina sizes.
-const types = [[16, 'icp4'], [32, 'icp5'], [64, 'icp6'], [128, 'ic07'], [256, 'ic08'], [512, 'ic09'], [1024, 'ic10']];
+const types = [
+  [16, 'icp4'],
+  [32, 'icp5'],
+  [64, 'icp6'],
+  [128, 'ic07'],
+  [256, 'ic08'],
+  [512, 'ic09'],
+  [1024, 'ic10'],
+];
 const chunks = types.map(([size, type]) => {
   const png = images.get(size);
   const header = Buffer.alloc(8);

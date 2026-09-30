@@ -90,12 +90,16 @@ export class CodeIndex implements CodeSearch {
   async search(query: string, limit: number, signal: AbortSignal): Promise<SearchHit[]> {
     await this.update(signal);
     const [queryVector] = await this.embedder.embed([query], signal);
+    if (!queryVector) throw new Error('The embedding service returned no vector for the query.');
     const q = normalize(Float32Array.from(queryVector));
 
     const scored: Array<{ path: string; chunk: IndexedChunk; score: number }> = [];
     for (const [path, file] of Object.entries(this.data.files)) {
       const vectors = this.vectorsFor(path, file);
-      file.chunks.forEach((chunk, i) => scored.push({ path, chunk, score: dot(q, vectors[i]) }));
+      file.chunks.forEach((chunk, i) => {
+        const vector = vectors[i];
+        if (vector) scored.push({ path, chunk, score: dot(q, vector) });
+      });
     }
     scored.sort((a, b) => b.score - a.score);
 
@@ -181,8 +185,14 @@ export class CodeIndex implements CodeSearch {
         signal,
       );
       batch.forEach((item, j) => {
+        const vector = vectors[j];
+        if (!vector) return;
         const list = results.get(item.file.path) ?? [];
-        list.push({ startLine: item.chunk.startLine, endLine: item.chunk.endLine, vector: encode(normalize(Float32Array.from(vectors[j]))) });
+        list.push({
+          startLine: item.chunk.startLine,
+          endLine: item.chunk.endLine,
+          vector: encode(normalize(Float32Array.from(vector))),
+        });
         results.set(item.file.path, list);
       });
       onProgress?.({ embedded: Math.min(i + EMBED_BATCH, work.length), total: work.length });
@@ -209,7 +219,10 @@ export class CodeIndex implements CodeSearch {
     try {
       const absolute = this.workspace.resolve(path);
       if ((await fileSize(absolute)) > MAX_FILE_BYTES) return '';
-      return (await readFile(absolute, 'utf8')).split(/\r?\n/).slice(start - 1, end).join('\n');
+      return (await readFile(absolute, 'utf8'))
+        .split(/\r?\n/)
+        .slice(start - 1, end)
+        .join('\n');
     } catch {
       return '';
     }
@@ -225,7 +238,7 @@ function normalize(vector: Float32Array): Float32Array {
 
 function dot(a: Float32Array, b: Float32Array): number {
   let sum = 0;
-  for (let i = 0; i < a.length; i++) sum += a[i] * b[i];
+  for (let i = 0; i < a.length; i++) sum += (a[i] ?? 0) * (b[i] ?? 0);
   return sum;
 }
 
@@ -253,9 +266,7 @@ export function searchCodeTool(index: CodeIndex): AgentTool {
         context.onProgress(`Indexing project: ${embedded}/${total} chunks\n`),
       );
       const hits = await index.search(query, limit, context.signal);
-      const content = hits
-        .map((hit) => `${hit.path}:${hit.startLine}-${hit.endLine}\n${hit.text}`)
-        .join('\n\n---\n\n');
+      const content = hits.map((hit) => `${hit.path}:${hit.startLine}-${hit.endLine}\n${hit.text}`).join('\n\n---\n\n');
       return {
         content: content || 'No matches.',
         summary: `Searched code for "${query}" (${hits.length} results)`,
@@ -264,7 +275,14 @@ export function searchCodeTool(index: CodeIndex): AgentTool {
   });
 }
 
-export function openAIEmbedder(client: { embeddings: { create(body: { model: string; input: string[] }, options?: { signal?: AbortSignal }): Promise<{ data: Array<{ embedding: number[]; index: number }> }> } }): Embedder {
+export function openAIEmbedder(client: {
+  embeddings: {
+    create(
+      body: { model: string; input: string[] },
+      options?: { signal?: AbortSignal },
+    ): Promise<{ data: Array<{ embedding: number[]; index: number }> }>;
+  };
+}): Embedder {
   return {
     model: EMBEDDING_MODEL,
     async embed(texts, signal) {

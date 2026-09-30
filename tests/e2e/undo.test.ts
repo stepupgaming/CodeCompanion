@@ -44,7 +44,8 @@ describe('undo an approved edit (mock Claude API)', () => {
     while (Date.now() < deadline) {
       const current = await snapshot();
       const pending = current.transcript.find((item) => item.kind === 'tool' && item.status === 'awaiting-approval');
-      if (pending) await running.page.evaluate((id) => window.api.invoke('chat:decide', id, { approved: true }), pending.id);
+      if (pending)
+        await running.page.evaluate((id) => window.api.invoke('chat:decide', id, { approved: true }), pending.id);
       else if (!current.busy && current.transcript.some((item) => item.kind === 'assistant')) return current;
       await new Promise((resolve) => setTimeout(resolve, 150));
     }
@@ -52,7 +53,8 @@ describe('undo an approved edit (mock Claude API)', () => {
   }
 
   // The app gives cards ids of its own, so cards are found by what they did.
-  const cardsOf = (chat: ChatSnapshot, name: string) => chat.transcript.filter((item) => item.kind === 'tool' && item.name === name);
+  const cardsOf = (chat: ChatSnapshot, name: string) =>
+    chat.transcript.filter((item) => item.kind === 'tool' && item.name === name);
 
   const toast = (text: string) => running.page.locator('.app-toast', { hasText: text }).first().waitFor();
 
@@ -80,11 +82,14 @@ describe('undo an approved edit (mock Claude API)', () => {
     claude.script(textTurn('Understood.'));
     await running.page.evaluate(() => window.api.invoke('chat:send', { text: 'What is the word now?' }));
     const deadline = Date.now() + 15_000;
-    while (Date.now() < deadline && claude.agentRequests.length < 4) await new Promise((resolve) => setTimeout(resolve, 100));
+    while (Date.now() < deadline && claude.agentRequests.length < 4)
+      await new Promise((resolve) => setTimeout(resolve, 100));
     const last = claude.agentRequests.at(-1).messages.at(-1);
     expect(JSON.stringify(last)).toContain('[Note from the app: The user undid your edit to notes.txt');
     expect(JSON.stringify(last)).toContain('What is the word now?');
-    const shown = (await snapshot()).transcript.filter((item) => item.kind === 'user').map((item) => (item as { text: string }).text);
+    const shown = (await snapshot()).transcript
+      .filter((item) => item.kind === 'user')
+      .map((item) => (item as { text: string }).text);
     expect(shown.at(-1)).toBe('What is the word now?');
   });
 
@@ -97,7 +102,7 @@ describe('undo an approved edit (mock Claude API)', () => {
     );
     const second = await runTask('Change it to kiwi');
     const [first, latest] = cardsOf(second, 'edit_file');
-    expect(first.id).not.toBe(latest.id);
+    expect(first!.id).not.toBe(latest!.id);
     expect(first).toMatchObject({ undo: 'undone' });
     expect(latest).toMatchObject({ undo: 'available' });
     expect(readFileSync(notes(), 'utf8')).toBe('The secret word is kiwi.\n');
@@ -116,7 +121,10 @@ describe('undo an approved edit (mock Claude API)', () => {
   });
 
   it('deletes a file the assistant created', async () => {
-    claude.script(toolTurn('toolu_new', 'write_file', { path: 'created.txt', content: 'brand new\n' }), textTurn('Created it.'));
+    claude.script(
+      toolTurn('toolu_new', 'write_file', { path: 'created.txt', content: 'brand new\n' }),
+      textTurn('Created it.'),
+    );
     await runTask('Create created.txt');
     expect(readFileSync(join(project, 'created.txt'), 'utf8')).toBe('brand new\n');
 

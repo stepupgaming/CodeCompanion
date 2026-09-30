@@ -40,7 +40,12 @@ describe('AppLog', () => {
       context: { version: '1.0.0' },
     });
     expect(warned).toMatchObject({ level: 'warn', source: 'window' });
-    expect(failed).toMatchObject({ level: 'error', source: 'ipc', message: 'Error: boom', context: { channel: 'chat:send' } });
+    expect(failed).toMatchObject({
+      level: 'error',
+      source: 'ipc',
+      message: 'Error: boom',
+      context: { channel: 'chat:send' },
+    });
     expect(failed.stack).toContain('app_log.test.ts');
   });
 
@@ -52,7 +57,12 @@ describe('AppLog', () => {
     circular.self = circular;
     log.error('unhandled-rejection', circular);
 
-    expect(entries().map((entry) => entry.message)).toEqual(['plain text', '{"code":42}', 'undefined', '[object Object]']);
+    expect(entries().map((entry) => entry.message)).toEqual([
+      'plain text',
+      '{"code":42}',
+      'undefined',
+      '[object Object]',
+    ]);
     expect(entries().every((entry) => entry.stack === undefined)).toBe(true);
   });
 

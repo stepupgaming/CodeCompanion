@@ -35,7 +35,15 @@ export class Panels {
       this.tabBar.appendChild(
         h(
           'button',
-          { id: `panel-tab-${name}`, class: 'panel-tab', role: 'tab', 'aria-controls': `panel-${name}`, tabindex: -1, dataset: { panel: name }, onclick: () => this.show(name) },
+          {
+            id: `panel-tab-${name}`,
+            class: 'panel-tab',
+            role: 'tab',
+            'aria-controls': `panel-${name}`,
+            tabindex: -1,
+            dataset: { panel: name },
+            onclick: () => this.show(name),
+          },
           icon(iconName),
           ` ${label}`,
         ),
@@ -44,17 +52,22 @@ export class Panels {
     // Arrow keys move between tabs, as in a native tab strip; only the selected tab is in the Tab order.
     this.tabBar.addEventListener('keydown', (event) => {
       const names = tabs.map(([name]) => name);
-      const current = names.indexOf(this.active ?? names[0]);
+      const current = names.indexOf(this.active ?? names[0]!);
       const next =
-        event.key === 'ArrowRight' ? (current + 1) % names.length
-        : event.key === 'ArrowLeft' ? (current - 1 + names.length) % names.length
-        : event.key === 'Home' ? 0
-        : event.key === 'End' ? names.length - 1
-        : -1;
+        event.key === 'ArrowRight'
+          ? (current + 1) % names.length
+          : event.key === 'ArrowLeft'
+            ? (current - 1 + names.length) % names.length
+            : event.key === 'Home'
+              ? 0
+              : event.key === 'End'
+                ? names.length - 1
+                : -1;
       if (next < 0) return;
       event.preventDefault();
-      this.show(names[next]);
-      this.tabBar.querySelector<HTMLElement>(`#panel-tab-${names[next]}`)?.focus();
+      const target = names[next]!;
+      this.show(target);
+      this.tabBar.querySelector<HTMLElement>(`#panel-tab-${target}`)?.focus();
     });
     this.element.append(this.tabBar, this.body);
   }
@@ -171,7 +184,11 @@ class BrowserPanel implements Panel {
     openDevTools(): void;
     getURL(): string;
   };
-  private readonly address = h('input', { class: 'form-control form-control-sm', placeholder: 'http://localhost:3000', 'aria-label': 'Address' });
+  private readonly address = h('input', {
+    class: 'form-control form-control-sm',
+    placeholder: 'http://localhost:3000',
+    'aria-label': 'Address',
+  });
 
   constructor() {
     // Created with an isolated session partition. The main process strips Node access from the guest.
@@ -225,7 +242,11 @@ class GitPanel implements Panel {
   readonly element = h('div', { class: 'git-panel' });
   private readonly fileList = h('div', { class: 'git-files list-group list-group-flush' });
   private readonly diffView = h('div', { class: 'git-diff' });
-  private readonly message = h('input', { class: 'form-control form-control-sm', placeholder: 'Commit message', 'aria-label': 'Commit message' });
+  private readonly message = h('input', {
+    class: 'form-control form-control-sm',
+    placeholder: 'Commit message',
+    'aria-label': 'Commit message',
+  });
   private readonly header = h('div', { class: 'git-header' });
   private selected: string | null = null;
   private status: GitStatus | null = null;
@@ -249,7 +270,7 @@ class GitPanel implements Panel {
   private async refresh(): Promise<void> {
     try {
       this.status = await api.invoke('git:status');
-    } catch (error) {
+    } catch {
       setChildren(this.header, h('div', { class: 'text-body-secondary p-3' }, 'Open a project to see its changes.'));
       this.fileList.replaceChildren();
       this.diffView.replaceChildren();
@@ -263,7 +284,11 @@ class GitPanel implements Panel {
           'div',
           { class: 'p-3' },
           h('p', { class: 'text-body-secondary' }, 'This project is not a Git repository.'),
-          h('button', { class: 'btn btn-sm btn-outline-secondary', onclick: () => this.run(() => api.invoke('git:init')) }, 'Initialize repository'),
+          h(
+            'button',
+            { class: 'btn btn-sm btn-outline-secondary', onclick: () => this.run(() => api.invoke('git:init')) },
+            'Initialize repository',
+          ),
         ),
       );
       this.fileList.replaceChildren();
@@ -278,8 +303,16 @@ class GitPanel implements Panel {
         { class: 'git-commit-row' },
         h('span', { class: 'badge text-bg-secondary' }, icon('git'), ` ${status.branch ?? 'detached'}`),
         this.message,
-        h('button', { class: 'btn btn-sm btn-primary', disabled: status.files.length === 0, onclick: () => void this.commit() }, 'Commit all'),
-        h('button', { class: 'btn btn-sm btn-outline-secondary', title: 'Refresh', onclick: () => void this.refresh() }, icon('arrow-clockwise')),
+        h(
+          'button',
+          { class: 'btn btn-sm btn-primary', disabled: status.files.length === 0, onclick: () => void this.commit() },
+          'Commit all',
+        ),
+        h(
+          'button',
+          { class: 'btn btn-sm btn-outline-secondary', title: 'Refresh', onclick: () => void this.refresh() },
+          icon('arrow-clockwise'),
+        ),
       ),
     );
 
@@ -293,10 +326,18 @@ class GitPanel implements Panel {
           { class: `list-group-item git-file${file.path === this.selected ? ' active' : ''}` },
           h(
             'button',
-            { class: 'btn btn-link p-0 text-reset text-decoration-none text-truncate text-start flex-grow-1', title: file.path, onclick: () => this.select(file.path) },
+            {
+              class: 'btn btn-link p-0 text-reset text-decoration-none text-truncate text-start flex-grow-1',
+              title: file.path,
+              onclick: () => this.select(file.path),
+            },
             file.path,
           ),
-          h('span', { class: `git-status git-${file.status}`, title: file.status, 'aria-label': file.status }, file.status[0].toUpperCase()),
+          h(
+            'span',
+            { class: `git-status git-${file.status}`, title: file.status, 'aria-label': file.status },
+            file.status.charAt(0).toUpperCase(),
+          ),
           h(
             'button',
             {
@@ -326,7 +367,12 @@ class GitPanel implements Panel {
       return;
     }
     const diff = await api.invoke('git:diff', this.selected);
-    setChildren(this.diffView, diff ? trustedHtml('div', '', renderDiff(diff, this.theme())) : h('div', { class: 'text-body-secondary p-3' }, 'No textual changes.'));
+    setChildren(
+      this.diffView,
+      diff
+        ? trustedHtml('div', '', renderDiff(diff, this.theme()))
+        : h('div', { class: 'text-body-secondary p-3' }, 'No textual changes.'),
+    );
   }
 
   private async commit(): Promise<void> {

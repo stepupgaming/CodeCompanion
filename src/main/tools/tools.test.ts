@@ -1,5 +1,14 @@
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -64,13 +73,17 @@ describe('Workspace', () => {
       symlinkSync(outside, join(root, 'link'), 'junction');
       expect(() => context.workspace.resolve('link/new.txt')).toThrow(/outside the project/);
       expect(() => context.workspace.resolve('link/deeper/new.txt')).toThrow(/outside the project/);
-      await expect(call(writeFileTool, { path: 'link/new.txt', content: 'escaped' })).rejects.toThrow(/outside the project/);
+      await expect(call(writeFileTool, { path: 'link/new.txt', content: 'escaped' })).rejects.toThrow(
+        /outside the project/,
+      );
       expect(existsSync(join(outside, 'new.txt'))).toBe(false);
 
       // A link that stays inside the project is fine, and so are new files in new folders.
       symlinkSync(join(root, 'src'), join(root, 'inner'), 'junction');
       expect(context.workspace.resolve('inner/new.ts')).toBe(join(context.workspace.root, 'src', 'new.ts'));
-      expect(context.workspace.resolve('brand/new/dir/file.ts')).toBe(join(context.workspace.root, 'brand', 'new', 'dir', 'file.ts'));
+      expect(context.workspace.resolve('brand/new/dir/file.ts')).toBe(
+        join(context.workspace.root, 'brand', 'new', 'dir', 'file.ts'),
+      );
     } finally {
       rmSync(outside, { recursive: true, force: true });
     }
@@ -138,8 +151,8 @@ describe('file tools', () => {
     for (let page = 0; page < 10; page++) {
       const result = await call(readFileTool, { path: 'big.txt', offset });
       const [text, note] = result.content.split('\n\n(');
-      expect(text.length).toBeLessThanOrEqual(30_000);
-      seen.push(...text.split('\n').map((line) => line.split('\t')[1]));
+      expect(text!.length).toBeLessThanOrEqual(30_000);
+      seen.push(...text!.split('\n').map((line) => line.split('\t')[1]!));
       if (!note) break;
       const next = Number(/Use offset=(\d+)/.exec(note)![1]);
       expect(next).toBeGreaterThan(offset);
@@ -155,40 +168,41 @@ describe('file tools', () => {
     writeFileSync(join(root, 'short-lines.txt'), Array.from({ length: 50 }, (_, index) => `${index}`).join('\n'));
     const result = await call(readFileTool, { path: 'short-lines.txt', limit: 10 });
     const [text, note] = result.content.split('\n\n(');
-    expect(text.split('\n').map((line) => line.split('\t')[1])).toEqual(Array.from({ length: 10 }, (_, index) => `${index}`));
-    expect(Number(/Use offset=(\d+)/.exec(note)![1])).toBe(11);
+    expect(text!.split('\n').map((line) => line.split('\t')[1])).toEqual(
+      Array.from({ length: 10 }, (_, index) => `${index}`),
+    );
+    expect(Number(/Use offset=(\d+)/.exec(note!)![1])).toBe(11);
   });
 
-  it.each([
-    'x'.repeat(29_998),
-    'x'.repeat(29_999),
-    `${'x'.repeat(29_997)}😀${'é漢😀'.repeat(20_000)}`,
-  ])('reconstructs long lines through the returned continuation without losing Unicode', async (line) => {
-    const original = [line, '', 'last 😀 line'];
-    writeFileSync(join(root, 'min.js'), original.join('\n'));
-    const reconstructed = ['', '', ''];
-    let offset = 1;
-    let char_offset = 0;
-    for (let page = 0; page < 20; page++) {
-      const result = await call(readFileTool, { path: 'min.js', offset, char_offset, limit: 1 });
-      const [text, note] = result.content.split('\n\n(');
-      expect(text.length).toBeLessThanOrEqual(30_000);
-      for (const numbered of text.split('\n')) {
-        const tab = numbered.indexOf('\t');
-        const fragment = numbered.slice(tab + 1);
-        expect(fragment).not.toMatch(/^[\uDC00-\uDFFF]|[\uD800-\uDBFF]$/u);
-        reconstructed[Number(numbered.slice(0, tab)) - 1] += fragment;
+  it.each(['x'.repeat(29_998), 'x'.repeat(29_999), `${'x'.repeat(29_997)}😀${'é漢😀'.repeat(20_000)}`])(
+    'reconstructs long lines through the returned continuation without losing Unicode',
+    async (line) => {
+      const original = [line, '', 'last 😀 line'];
+      writeFileSync(join(root, 'min.js'), original.join('\n'));
+      const reconstructed = ['', '', ''];
+      let offset = 1;
+      let char_offset = 0;
+      for (let page = 0; page < 20; page++) {
+        const result = await call(readFileTool, { path: 'min.js', offset, char_offset, limit: 1 });
+        const [text, note] = result.content.split('\n\n(');
+        expect(text!.length).toBeLessThanOrEqual(30_000);
+        for (const numbered of text!.split('\n')) {
+          const tab = numbered.indexOf('\t');
+          const fragment = numbered.slice(tab + 1);
+          expect(fragment).not.toMatch(/^[\uDC00-\uDFFF]|[\uD800-\uDBFF]$/u);
+          reconstructed[Number(numbered.slice(0, tab)) - 1] += fragment;
+        }
+        if (!note) break;
+        const next = /Use offset=(\d+)(?: and char_offset=(\d+))?/.exec(note)!;
+        const nextLine = Number(next[1]);
+        const nextChar = Number(next[2] ?? 0);
+        expect(nextLine > offset || (nextLine === offset && nextChar > char_offset)).toBe(true);
+        offset = nextLine;
+        char_offset = nextChar;
       }
-      if (!note) break;
-      const next = /Use offset=(\d+)(?: and char_offset=(\d+))?/.exec(note)!;
-      const nextLine = Number(next[1]);
-      const nextChar = Number(next[2] ?? 0);
-      expect(nextLine > offset || (nextLine === offset && nextChar > char_offset)).toBe(true);
-      offset = nextLine;
-      char_offset = nextChar;
-    }
-    expect(reconstructed).toEqual(original);
-  });
+      expect(reconstructed).toEqual(original);
+    },
+  );
 
   it('validates character offsets and applies them only to the first line', async () => {
     writeFileSync(join(root, 'unicode.txt'), 'a😀b\nnext');
@@ -219,7 +233,11 @@ describe('file tools', () => {
 
   it('edits after reading and reports a diff', async () => {
     await call(readFileTool, { path: 'src/app.ts' });
-    const result = await call(editFileTool, { path: 'src/app.ts', old_string: 'const a = 1;', new_string: 'const a = 10;' });
+    const result = await call(editFileTool, {
+      path: 'src/app.ts',
+      old_string: 'const a = 1;',
+      new_string: 'const a = 10;',
+    });
     expect(readFileSync(join(root, 'src', 'app.ts'), 'utf8')).toContain('const a = 10;');
     expect(result.content).toContain('+const a = 10;');
   });
@@ -232,12 +250,18 @@ describe('file tools', () => {
   it('keeps what is needed to undo an edit: the exact previous bytes and a fingerprint of the result', async () => {
     const original = readFileSync(join(root, 'src', 'app.ts'));
     await call(readFileTool, { path: 'src/app.ts' });
-    const result = await call(editFileTool, { path: 'src/app.ts', old_string: 'const a = 1;', new_string: 'const a = 10;' });
+    const result = await call(editFileTool, {
+      path: 'src/app.ts',
+      old_string: 'const a = 1;',
+      new_string: 'const a = 10;',
+    });
 
     expect(result.undo).toEqual({
       path: 'src/app.ts',
       before: original,
-      afterHash: createHash('sha256').update(readFileSync(join(root, 'src', 'app.ts'))).digest('hex'),
+      afterHash: createHash('sha256')
+        .update(readFileSync(join(root, 'src', 'app.ts')))
+        .digest('hex'),
     });
   });
 
@@ -264,7 +288,10 @@ describe('file tools', () => {
   });
 
   it('previews writes as a diff', async () => {
-    const preview = await writeFileTool.preview!(writeFileTool.schema.parse({ path: 'new.txt', content: 'hello\n' }), context);
+    const preview = await writeFileTool.preview!(
+      writeFileTool.schema.parse({ path: 'new.txt', content: 'hello\n' }),
+      context,
+    );
     expect(preview.title).toBe('Create new.txt');
     expect(preview.diff).toContain('+hello');
   });
@@ -318,7 +345,7 @@ describe('browser tool', () => {
     await call(browserTool, { url: 'http://localhost:3000' }, ctx);
     await call(browserTool, { url: pathToFileURL(join(root, 'index.html')).href }, ctx);
     expect(opened[0]).toBe('http://localhost:3000');
-    expect(opened[1].toLowerCase()).toContain('index.html');
+    expect(opened[1]!.toLowerCase()).toContain('index.html');
   });
 
   it('confines later browser navigation to the approved exact hostname', async () => {
@@ -374,7 +401,9 @@ describe('fetch redirects', () => {
     }) as typeof fetch;
     try {
       expect(
-        await (await fetchWithoutCrossHostRedirect(new URL('https://allowed.test/start'), new AbortController().signal)).text(),
+        await (
+          await fetchWithoutCrossHostRedirect(new URL('https://allowed.test/start'), new AbortController().signal)
+        ).text(),
       ).toBe('ok');
       expect(contacted).toEqual(['https://allowed.test/start', 'https://allowed.test/next']);
     } finally {
@@ -441,7 +470,9 @@ describe('shell tools', () => {
     const controller = new AbortController();
     controller.abort();
     const marker = join(root, 'should-not-exist.txt');
-    const result = await context.shell.run(`node -e "require('fs').writeFileSync('should-not-exist.txt','x')"`, { signal: controller.signal });
+    const result = await context.shell.run(`node -e "require('fs').writeFileSync('should-not-exist.txt','x')"`, {
+      signal: controller.signal,
+    });
     await new Promise((resolve) => setTimeout(resolve, 1_500));
     expect(result.aborted).toBe(true);
     expect(existsSync(marker)).toBe(false);

@@ -43,7 +43,9 @@ describe('compact chat (mock Claude API)', () => {
     const before = (await snapshot()).transcript.filter((item) => item.kind === 'assistant').length;
     const text = `${label} ${'lorem ipsum '.repeat(1_250)}`;
     await running.page.evaluate((message) => window.api.invoke('chat:send', { text: message }), text);
-    await waitFor((current) => !current.busy && current.transcript.filter((item) => item.kind === 'assistant').length > before);
+    await waitFor(
+      (current) => !current.busy && current.transcript.filter((item) => item.kind === 'assistant').length > before,
+    );
   }
 
   it('summarizes older turns from the header button, and the next request sends the summary instead of them', async () => {
@@ -87,7 +89,9 @@ describe('compact chat (mock Claude API)', () => {
     let file: string | undefined;
     for (let attempt = 0; attempt < 30 && !file; attempt++) {
       await new Promise((resolve) => setTimeout(resolve, 200));
-      file = existsSync(chatsDir) ? readdirSync(chatsDir).find((name) => name !== 'index.json' && name.endsWith('.json')) : undefined;
+      file = existsSync(chatsDir)
+        ? readdirSync(chatsDir).find((name) => name !== 'index.json' && name.endsWith('.json'))
+        : undefined;
     }
     const saved = JSON.parse(readFileSync(join(chatsDir, file!), 'utf8'));
 
@@ -122,7 +126,9 @@ describe('compact chat (mock Claude API)', () => {
     await ask('ONLY-QUESTION');
     const before = claude.summaryRequests.length;
     await running.page.getByLabel('Compact chat').click();
-    await waitFor((current) => current.transcript.find((item) => item.kind === 'notice' && item.text.includes('not enough older history')));
+    await waitFor((current) =>
+      current.transcript.find((item) => item.kind === 'notice' && item.text.includes('not enough older history')),
+    );
     expect(claude.summaryRequests.length).toBe(before);
   });
 });

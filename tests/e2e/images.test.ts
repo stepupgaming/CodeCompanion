@@ -31,12 +31,19 @@ describe('image attachments follow the model (mock Claude API)', () => {
     expect(await attach().isEnabled()).toBe(true);
 
     claude.script({ blocks: [{ type: 'text', text: 'A tiny image.' }], stopReason: 'end_turn' });
-    await running.page.evaluate((img) => window.api.invoke('chat:send', { text: 'What is this?', images: [img] }), image);
+    await running.page.evaluate(
+      (img) => window.api.invoke('chat:send', { text: 'What is this?', images: [img] }),
+      image,
+    );
     const deadline = Date.now() + 15_000;
-    while (claude.agentRequests.length === 0 && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 100));
+    while (claude.agentRequests.length === 0 && Date.now() < deadline)
+      await new Promise((resolve) => setTimeout(resolve, 100));
 
     const content = claude.agentRequests[0].messages[0].content;
-    expect(content[0]).toMatchObject({ type: 'image', source: { type: 'base64', media_type: 'image/png', data: image.base64 } });
+    expect(content[0]).toMatchObject({
+      type: 'image',
+      source: { type: 'base64', media_type: 'image/png', data: image.base64 },
+    });
   });
 
   it('turns attaching off for a Claude model that is not known to accept images, and refuses to send one', async () => {
@@ -48,7 +55,11 @@ describe('image attachments follow the model (mock Claude API)', () => {
 
     const before = claude.agentRequests.length;
     const refused = await running.page.evaluate(
-      (img) => window.api.invoke('chat:send', { text: 'Look', images: [img] }).then(() => 'sent', (error: Error) => error.message),
+      (img) =>
+        window.api.invoke('chat:send', { text: 'Look', images: [img] }).then(
+          () => 'sent',
+          (error: Error) => error.message,
+        ),
       image,
     );
     expect(refused).toContain('does not accept images');

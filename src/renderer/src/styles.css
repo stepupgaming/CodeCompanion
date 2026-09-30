@@ -59,7 +59,8 @@
   --bs-link-color-rgb: var(--patch-accent-rgb);
   --bs-link-hover-color: var(--patch-accent-text);
   --bs-focus-ring-color: rgba(var(--patch-accent-rgb), 0.35);
-  --bs-font-sans-serif: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  --bs-font-sans-serif:
+    'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
   --bs-font-monospace: 'Cascadia Code', 'JetBrains Mono', ui-monospace, SFMono-Regular, Consolas, monospace;
   color-scheme: dark;
 }
@@ -84,7 +85,7 @@ body {
 }
 
 ::selection {
-  background: rgba(var(--patch-accent-rgb), 0.30);
+  background: rgba(var(--patch-accent-rgb), 0.3);
 }
 
 ::-webkit-scrollbar {
@@ -616,7 +617,9 @@ body {
 
 .tool-card.awaiting {
   border-color: var(--bs-warning);
-  box-shadow: 0 0 0 1px var(--bs-warning), var(--patch-shadow);
+  box-shadow:
+    0 0 0 1px var(--bs-warning),
+    var(--patch-shadow);
   padding: 0.65rem 0.8rem;
 }
 
@@ -724,11 +727,13 @@ body {
   border-radius: 14px;
   background: var(--patch-surface);
   box-shadow: 0 2px 12px rgb(0 0 0 / 8%);
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
 }
 
 .composer-box:focus-within {
-  border-color: rgba(var(--patch-accent-rgb), 0.70);
+  border-color: rgba(var(--patch-accent-rgb), 0.7);
   box-shadow: 0 0 0 3px rgba(var(--patch-accent-rgb), 0.15);
 }
 

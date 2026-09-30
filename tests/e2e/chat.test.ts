@@ -88,7 +88,11 @@ describe('chat end to end (mock Claude API)', () => {
 
     const kinds = snapshot.transcript.map((item) => item.kind);
     expect(kinds).toEqual(['user', 'assistant', 'tool', 'assistant']);
-    expect(snapshot.transcript[2]).toMatchObject({ name: 'read_file', status: 'done', summary: 'Read notes.txt (2 lines)' });
+    expect(snapshot.transcript[2]).toMatchObject({
+      name: 'read_file',
+      status: 'done',
+      summary: 'Read notes.txt (2 lines)',
+    });
     expect(snapshot.transcript[3]).toMatchObject({ text: 'The secret word is pineapple.' });
 
     // The tool result went back to the model with the file content.
@@ -136,7 +140,10 @@ describe('chat end to end (mock Claude API)', () => {
     );
     expect(pending.kind === 'tool' && pending.preview?.diff).toContain('+The secret word is mango.');
 
-    await running.page.evaluate((approvalId) => window.api.invoke('chat:decide', approvalId, { approved: true }), pending.id);
+    await running.page.evaluate(
+      (approvalId) => window.api.invoke('chat:decide', approvalId, { approved: true }),
+      pending.id,
+    );
     await waitFor((current) => !current.busy && current.transcript.at(-1)?.kind === 'assistant');
     const { readFileSync } = await import('node:fs');
     expect(readFileSync(join(project, 'notes.txt'), 'utf8')).toContain('mango');
@@ -148,17 +155,27 @@ describe('chat end to end (mock Claude API)', () => {
     const empty = (await invoke(`window.api.invoke('chat:snapshot')`)) as ChatSnapshot;
     expect(empty.transcript).toEqual([]);
 
-    const reopened = (await running.page.evaluate((id) => window.api.invoke('history:open', id), before.id)) as ChatSnapshot;
+    const reopened = (await running.page.evaluate(
+      (id) => window.api.invoke('history:open', id),
+      before.id,
+    )) as ChatSnapshot;
     expect(reopened.transcript.map((item) => item.kind)).toEqual(before.transcript.map((item) => item.kind));
     expect(existsSync(join(running.userData, 'chats', `${before.id}.json`))).toBe(true);
   });
 
   it.each(['fetch_url', 'browser'])('asks before %s contacts an unlisted host', async (name) => {
-    await running.page.evaluate(() => window.api.invoke('settings:update', { approvalMode: 'ask', allowedNetworkHosts: '' }));
+    await running.page.evaluate(() =>
+      window.api.invoke('settings:update', { approvalMode: 'ask', allowedNetworkHosts: '' }),
+    );
     const before = webRequests;
-    claude.script({ blocks: [{ type: 'tool_use', id: `network-${name}`, name, input: { url: webUrl } }], stopReason: 'tool_use' });
+    claude.script({
+      blocks: [{ type: 'tool_use', id: `network-${name}`, name, input: { url: webUrl } }],
+      stopReason: 'tool_use',
+    });
     await running.page.evaluate(() => window.api.invoke('chat:send', { text: 'Open the test page' }));
-    const pending = await waitFor((current) => current.transcript.find((item) => item.kind === 'tool' && item.status === 'awaiting-approval'));
+    const pending = await waitFor((current) =>
+      current.transcript.find((item) => item.kind === 'tool' && item.status === 'awaiting-approval'),
+    );
     expect(pending).toMatchObject({ preview: { title: expect.stringContaining(webUrl) } });
     expect(webRequests).toBe(before);
     if (process.env.E2E_SCREENSHOTS) {
@@ -170,12 +187,20 @@ describe('chat end to end (mock Claude API)', () => {
   });
 
   it.each(['ask', 'auto'] as const)('runs allowed network calls in %s mode', async (approvalMode) => {
-    await running.page.evaluate((mode) => window.api.invoke('settings:update', {
-      approvalMode: mode, allowedNetworkHosts: mode === 'ask' ? '127.0.0.1' : '',
-    }), approvalMode);
+    await running.page.evaluate(
+      (mode) =>
+        window.api.invoke('settings:update', {
+          approvalMode: mode,
+          allowedNetworkHosts: mode === 'ask' ? '127.0.0.1' : '',
+        }),
+      approvalMode,
+    );
     const before = webRequests;
     claude.script(
-      { blocks: [{ type: 'tool_use', id: `allowed-${approvalMode}`, name: 'fetch_url', input: { url: webUrl } }], stopReason: 'tool_use' },
+      {
+        blocks: [{ type: 'tool_use', id: `allowed-${approvalMode}`, name: 'fetch_url', input: { url: webUrl } }],
+        stopReason: 'tool_use',
+      },
       { blocks: [{ type: 'text', text: `Network ${approvalMode} complete` }], stopReason: 'end_turn' },
     );
     await running.page.evaluate(() => window.api.invoke('chat:send', { text: 'Fetch the test page' }));

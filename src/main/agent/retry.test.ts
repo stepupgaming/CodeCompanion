@@ -6,7 +6,8 @@ import { abortableSleep, MAX_RETRIES, retryDecision } from './retry';
 // Half of the jitter range, so the delay is exactly the backoff.
 const middle = () => 0.5;
 
-const status = (code: number, extra: Record<string, unknown> = {}) => Object.assign(new Error(`HTTP ${code}`), { status: code, ...extra });
+const status = (code: number, extra: Record<string, unknown> = {}) =>
+  Object.assign(new Error(`HTTP ${code}`), { status: code, ...extra });
 
 describe('retryDecision: what is retried', () => {
   it.each([
@@ -32,8 +33,16 @@ describe('retryDecision: what is retried', () => {
   });
 
   it('does not retry a 429 that means the account is out of quota or credit', () => {
-    expect(retryDecision(status(429, { code: 'insufficient_quota', message: 'You exceeded your current quota' }), 0, middle)).toBeNull();
-    expect(retryDecision(status(429, { error: { message: 'You have reached your specified API usage limits.' } }), 0, middle)).toBeNull();
+    expect(
+      retryDecision(status(429, { code: 'insufficient_quota', message: 'You exceeded your current quota' }), 0, middle),
+    ).toBeNull();
+    expect(
+      retryDecision(
+        status(429, { error: { message: 'You have reached your specified API usage limits.' } }),
+        0,
+        middle,
+      ),
+    ).toBeNull();
   });
 
   it.each([
@@ -52,7 +61,13 @@ describe('retryDecision: what is retried', () => {
 
   it('does not retry a refused connection, which means nothing is listening', () => {
     expect(retryDecision(Object.assign(new Error('refused'), { code: 'ECONNREFUSED' }), 0, middle)).toBeNull();
-    expect(retryDecision(Object.assign(new Error('refused'), { name: 'APIConnectionError', cause: { code: 'ECONNREFUSED' } }), 0, middle)).toBeNull();
+    expect(
+      retryDecision(
+        Object.assign(new Error('refused'), { name: 'APIConnectionError', cause: { code: 'ECONNREFUSED' } }),
+        0,
+        middle,
+      ),
+    ).toBeNull();
   });
 
   it.each([
@@ -61,17 +76,25 @@ describe('retryDecision: what is retried', () => {
     ['rate_limit_error', { error: { type: 'rate_limit_error' } }, 'Provider error (rate limit)'],
     ['server_error', { type: 'server_error' }, 'Provider error (server)'],
   ])('retries %s reported inside a stream', (_name, props, reason) => {
-    expect(retryDecision(Object.assign(new Error('stream error'), props), 0, middle)).toEqual({ delayMs: 2000, reason });
+    expect(retryDecision(Object.assign(new Error('stream error'), props), 0, middle)).toEqual({
+      delayMs: 2000,
+      reason,
+    });
   });
 
   it('does not retry an invalid request reported inside a stream', () => {
-    expect(retryDecision(Object.assign(new Error('bad'), { error: { type: 'invalid_request_error' } }), 0, middle)).toBeNull();
+    expect(
+      retryDecision(Object.assign(new Error('bad'), { error: { type: 'invalid_request_error' } }), 0, middle),
+    ).toBeNull();
   });
 });
 
 describe('retryDecision: how long to wait', () => {
   it('doubles the wait for each retry and stops after the last one', () => {
-    const delays = Array.from({ length: MAX_RETRIES + 1 }, (_, attempt) => retryDecision(status(503), attempt, middle)?.delayMs ?? null);
+    const delays = Array.from(
+      { length: MAX_RETRIES + 1 },
+      (_, attempt) => retryDecision(status(503), attempt, middle)?.delayMs ?? null,
+    );
     expect(delays).toEqual([2000, 4000, 8000, 16000, null]);
   });
 
@@ -102,13 +125,17 @@ describe('retryDecision: how long to wait', () => {
   });
 
   it('ignores a Retry-After it cannot read', () => {
-    expect(retryDecision(status(429, { headers: new Headers({ 'retry-after': 'soon' }) }), 0, middle)?.delayMs).toBe(2000);
+    expect(retryDecision(status(429, { headers: new Headers({ 'retry-after': 'soon' }) }), 0, middle)?.delayMs).toBe(
+      2000,
+    );
     expect(retryDecision(status(429, { headers: 'not headers' }), 0, middle)?.delayMs).toBe(2000);
   });
 
   it('gives up when the provider asks for more than a minute', () => {
     expect(retryDecision(status(429, { headers: new Headers({ 'retry-after': '61' }) }), 0, middle)).toBeNull();
-    expect(retryDecision(status(429, { headers: new Headers({ 'retry-after': '60' }) }), 0, middle)?.delayMs).toBe(60_000);
+    expect(retryDecision(status(429, { headers: new Headers({ 'retry-after': '60' }) }), 0, middle)?.delayMs).toBe(
+      60_000,
+    );
   });
 });
 
@@ -122,13 +149,25 @@ describe('retryDecision: errors from the provider SDKs', () => {
     );
     expect(retryDecision(rateLimited, 0, middle)).toEqual({ delayMs: 2000, reason: 'Rate limited (429)' });
 
-    const overloaded = Anthropic.APIError.generate(529, { type: 'error', error: { type: 'overloaded_error' } }, 'Overloaded', new Headers());
+    const overloaded = Anthropic.APIError.generate(
+      529,
+      { type: 'error', error: { type: 'overloaded_error' } },
+      'Overloaded',
+      new Headers(),
+    );
     expect(retryDecision(overloaded, 0, middle)?.reason).toBe('Provider overloaded (529)');
 
-    const unauthorized = Anthropic.APIError.generate(401, { type: 'error', error: { type: 'authentication_error' } }, 'Bad key', new Headers());
+    const unauthorized = Anthropic.APIError.generate(
+      401,
+      { type: 'error', error: { type: 'authentication_error' } },
+      'Bad key',
+      new Headers(),
+    );
     expect(retryDecision(unauthorized, 0, middle)).toBeNull();
 
-    expect(retryDecision(new Anthropic.APIConnectionError({ message: 'Connection error.' }), 0, middle)?.reason).toBe('Connection problem');
+    expect(retryDecision(new Anthropic.APIConnectionError({ message: 'Connection error.' }), 0, middle)?.reason).toBe(
+      'Connection problem',
+    );
     expect(retryDecision(new Anthropic.APIConnectionTimeoutError(), 0, middle)?.reason).toBe('Request timed out');
     expect(retryDecision(new Anthropic.APIUserAbortError(), 0, middle)).toBeNull();
   });
@@ -142,13 +181,20 @@ describe('retryDecision: errors from the provider SDKs', () => {
     );
     expect(retryDecision(quota, 0, middle)).toBeNull();
 
-    const busy = OpenAI.APIError.generate(429, { code: 'rate_limit_exceeded', message: 'Rate limit reached' }, 'Rate limit reached', new Headers({ 'retry-after-ms': '2500' }));
+    const busy = OpenAI.APIError.generate(
+      429,
+      { code: 'rate_limit_exceeded', message: 'Rate limit reached' },
+      'Rate limit reached',
+      new Headers({ 'retry-after-ms': '2500' }),
+    );
     expect(retryDecision(busy, 0, middle)).toEqual({ delayMs: 2500, reason: 'Rate limited (429)' });
 
     const down = OpenAI.APIError.generate(503, { message: 'unavailable' }, 'unavailable', new Headers());
     expect(retryDecision(down, 0, middle)?.reason).toBe('Server error (503)');
 
-    expect(retryDecision(new OpenAI.APIConnectionError({ message: 'Connection error.' }), 0, middle)?.reason).toBe('Connection problem');
+    expect(retryDecision(new OpenAI.APIConnectionError({ message: 'Connection error.' }), 0, middle)?.reason).toBe(
+      'Connection problem',
+    );
     expect(retryDecision(new OpenAI.APIUserAbortError(), 0, middle)).toBeNull();
   });
 });
@@ -162,7 +208,13 @@ describe('retryDecision: errors sent inside a stream, built the way the SDKs bui
   });
 
   it('retries an api_error in a Claude stream, and not an invalid request', () => {
-    const transient = new Anthropic.APIError(undefined, { type: 'error', error: { type: 'api_error' } }, undefined, new Headers(), 'api_error');
+    const transient = new Anthropic.APIError(
+      undefined,
+      { type: 'error', error: { type: 'api_error' } },
+      undefined,
+      new Headers(),
+      'api_error',
+    );
     expect(retryDecision(transient, 0, middle)?.reason).toBe('Provider error (api)');
     const invalid = new Anthropic.APIError(
       undefined,
@@ -176,12 +228,22 @@ describe('retryDecision: errors sent inside a stream, built the way the SDKs bui
 
   it('retries a server error in an OpenAI stream', () => {
     // As openai core/streaming.js does for an SSE `error` event.
-    const error = new OpenAI.APIError(undefined, { type: 'server_error', code: 'server_error', message: 'The server had an error' }, undefined, new Headers());
+    const error = new OpenAI.APIError(
+      undefined,
+      { type: 'server_error', code: 'server_error', message: 'The server had an error' },
+      undefined,
+      new Headers(),
+    );
     expect(retryDecision(error, 0, middle)?.reason).toBe('Provider error (server)');
   });
 
   it('does not retry an OpenAI stream error that will not pass', () => {
-    const error = new OpenAI.APIError(undefined, { type: 'invalid_request_error', code: 'context_length_exceeded' }, undefined, new Headers());
+    const error = new OpenAI.APIError(
+      undefined,
+      { type: 'invalid_request_error', code: 'context_length_exceeded' },
+      undefined,
+      new Headers(),
+    );
     expect(retryDecision(error, 0, middle)).toBeNull();
   });
 

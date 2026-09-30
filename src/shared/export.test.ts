@@ -75,7 +75,17 @@ describe('chatToMarkdown', () => {
 
   it('marks an edit that was undone', () => {
     const markdown = chatToMarkdown(
-      chat([{ kind: 'tool', id: 't1', name: 'edit_file', status: 'done', summary: 'Edited a.ts', undo: 'undone', preview: { title: 'Edit a.ts', diff: '-a\n+b' } }]),
+      chat([
+        {
+          kind: 'tool',
+          id: 't1',
+          name: 'edit_file',
+          status: 'done',
+          summary: 'Edited a.ts',
+          undo: 'undone',
+          preview: { title: 'Edit a.ts', diff: '-a\n+b' },
+        },
+      ]),
     );
     expect(markdown).toContain('> **edit_file**: Edited a.ts (undone)');
   });
@@ -88,7 +98,13 @@ describe('chatToMarkdown', () => {
           id: 't1',
           name: 'write_file',
           status: 'done',
-          preview: { title: 'Create big.txt', diff: '+a', diffOmittedLines: 5000, command: 'x', commandOmittedChars: 12 },
+          preview: {
+            title: 'Create big.txt',
+            diff: '+a',
+            diffOmittedLines: 5000,
+            command: 'x',
+            commandOmittedChars: 12,
+          },
         },
       ]),
     );

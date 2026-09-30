@@ -38,7 +38,9 @@ describe('user interface', () => {
   it('shows the project and a missing-key hint after opening it', async () => {
     await running.page.evaluate((path) => window.api.invoke('project:open', path), project);
     await running.page.getByText('Add your Anthropic API key').waitFor();
-    await expect(running.page.locator('.project-button').textContent()).resolves.toContain(project.split(/[\\/]/).pop());
+    await expect(running.page.locator('.project-button').textContent()).resolves.toContain(
+      project.split(/[\\/]/).pop(),
+    );
   });
 
   it('saves an API key through the settings dialog', async () => {

@@ -156,6 +156,6 @@ describe('openInEditor', () => {
     mocks.spawn.mockReturnValue({ on, unref: mocks.unref });
     openInEditor('missing-editor', dir, 'a.txt');
     expect(on).toHaveBeenCalledWith('error', expect.any(Function));
-    expect(() => on.mock.calls[0][1](new Error('spawn failed'))).not.toThrow();
+    expect(() => on.mock.calls[0]![1](new Error('spawn failed'))).not.toThrow();
   });
 });

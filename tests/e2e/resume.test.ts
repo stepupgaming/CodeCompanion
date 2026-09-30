@@ -36,7 +36,9 @@ describe('stop and resume end to end', () => {
       if (check(chat)) return chat;
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
-    throw new Error(`Timed out waiting for chat state: ${JSON.stringify(await snapshot())}; ${running.mainErrors.join(' ')}`);
+    throw new Error(
+      `Timed out waiting for chat state: ${JSON.stringify(await snapshot())}; ${running.mainErrors.join(' ')}`,
+    );
   }
 
   it('shows Resume after reopening a stopped approval and continues without another visible user message', async () => {
@@ -56,7 +58,9 @@ describe('stop and resume end to end', () => {
     );
 
     await running.page.evaluate(() => window.api.invoke('chat:send', { text: 'Change the file' }));
-    await waitFor((chat) => chat.transcript.some((item) => item.kind === 'tool' && item.status === 'awaiting-approval'));
+    await waitFor((chat) =>
+      chat.transcript.some((item) => item.kind === 'tool' && item.status === 'awaiting-approval'),
+    );
     await running.page.getByRole('button', { name: /Stop/ }).click();
     const paused = await waitFor((chat) => !chat.busy && chat.resumable);
 
@@ -68,7 +72,9 @@ describe('stop and resume end to end', () => {
     }
 
     await running.page.getByRole('button', { name: /Resume/ }).click();
-    const resumed = await waitFor((chat) => !chat.busy && !chat.resumable && chat.transcript.at(-1)?.kind === 'assistant');
+    const resumed = await waitFor(
+      (chat) => !chat.busy && !chat.resumable && chat.transcript.at(-1)?.kind === 'assistant',
+    );
     expect(resumed.transcript.filter((item) => item.kind === 'user')).toHaveLength(1);
     expect(JSON.stringify(claude.agentRequests.at(-1).messages.at(-1).content)).toContain('inspect the current state');
     expect(running.errors).toEqual([]);

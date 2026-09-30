@@ -7,7 +7,8 @@ import { runCommandTool, ShellRunner } from './shell';
 import type { ToolContext } from './types';
 import { Workspace } from './workspace';
 
-const command = 'node -e "require(\'net\').createServer().listen(0, \'127.0.0.1\', () => console.log(\'background-ready\'))"';
+const command =
+  "node -e \"require('net').createServer().listen(0, '127.0.0.1', () => console.log('background-ready'))\"";
 
 describe('background command cancellation', () => {
   let root: string;
@@ -20,8 +21,14 @@ describe('background command cancellation', () => {
     shell = new ShellRunner(() => root);
     controller = new AbortController();
     context = {
-      shell, signal: controller.signal, workspace: new Workspace(root), readFiles: new Set(),
-      browser: null, codeSearch: null, webSearch: null, onProgress() {},
+      shell,
+      signal: controller.signal,
+      workspace: new Workspace(root),
+      readFiles: new Set(),
+      browser: null,
+      codeSearch: null,
+      webSearch: null,
+      onProgress() {},
     };
   });
 
@@ -32,9 +39,15 @@ describe('background command cancellation', () => {
 
   it('does not launch a background command with an already-aborted signal', async () => {
     controller.abort();
-    await expect(runCommandTool.run({
-      command: 'node -e "require(\'fs\').writeFileSync(\'unexpected.txt\', \'started\')"', background: true,
-    }, context)).rejects.toMatchObject({ name: 'AbortError' });
+    await expect(
+      runCommandTool.run(
+        {
+          command: "node -e \"require('fs').writeFileSync('unexpected.txt', 'started')\"",
+          background: true,
+        },
+        context,
+      ),
+    ).rejects.toMatchObject({ name: 'AbortError' });
     expect(existsSync(join(root, 'unexpected.txt'))).toBe(false);
     expect(shell.getBackground(1)).toBeUndefined();
   });
@@ -58,7 +71,10 @@ describe('background command cancellation', () => {
 
     // Abort must settle without waiting for the three-second startup timer.
     const result = await Promise.race([
-      pending.then(() => 'finished', (error: Error) => error.name),
+      pending.then(
+        () => 'finished',
+        (error: Error) => error.name,
+      ),
       new Promise<string>((resolve) => setImmediate(() => resolve('still waiting'))),
     ]);
     expect(result).toBe('AbortError');

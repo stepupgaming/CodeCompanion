@@ -58,7 +58,10 @@ describe('long chat performance', () => {
     project = mkdtempSync(join(tmpdir(), 'patch-perf-project-'));
     profile = mkdtempSync(join(tmpdir(), 'patch-perf-profile-'));
     mkdirSync(join(profile, 'chats'));
-    writeFileSync(join(profile, 'chats', `${LONG_ID}.json`), JSON.stringify(savedChat(LONG_ID, project, transcript(TURNS))));
+    writeFileSync(
+      join(profile, 'chats', `${LONG_ID}.json`),
+      JSON.stringify(savedChat(LONG_ID, project, transcript(TURNS))),
+    );
     claude = new MockClaude();
     running = await launchApp({ PATCH_TEST_ANTHROPIC_URL: await claude.start() }, { userData: profile });
     await running.page.evaluate((path) => window.api.invoke('project:open', path), project);
@@ -96,14 +99,19 @@ describe('long chat performance', () => {
 
   const diffMetrics = (before: Record<string, number>, after: Record<string, number>) =>
     Object.fromEntries(
-      ['ScriptDuration', 'LayoutDuration', 'RecalcStyleDuration'].map((name) => [name, Math.round((after[name] - before[name]) * 1000)]),
+      ['ScriptDuration', 'LayoutDuration', 'RecalcStyleDuration'].map((name) => [
+        name,
+        Math.round(((after[name] ?? 0) - (before[name] ?? 0)) * 1000),
+      ]),
     );
 
   const domNodes = () => running.page.evaluate(() => document.querySelectorAll('.transcript *').length);
 
   // Seconds of CPU the main (browser) process has used since it started, or null where Electron does not report it.
   const mainCpuSeconds = () =>
-    running.app.evaluate(({ app }) => app.getAppMetrics().find((metric) => metric.type === 'Browser')?.cpu.cumulativeCPUUsage ?? null);
+    running.app.evaluate(
+      ({ app }) => app.getAppMetrics().find((metric) => metric.type === 'Browser')?.cpu.cumulativeCPUUsage ?? null,
+    );
 
   // Streams ANSWER into the open chat and records every frame and long task while it arrives.
   async function stream(label: string, items: number, openMs: number | null): Promise<void> {
@@ -111,7 +119,9 @@ describe('long chat performance', () => {
     await running.page.evaluate(() => {
       const state = { frames: [] as number[], long: [] as number[], stop: false };
       (window as any).__perf = state;
-      new PerformanceObserver((list) => list.getEntries().forEach((entry) => state.long.push(entry.duration))).observe({ type: 'longtask' });
+      new PerformanceObserver((list) => list.getEntries().forEach((entry) => state.long.push(entry.duration))).observe({
+        type: 'longtask',
+      });
       let last = performance.now();
       const tick = (time: number) => {
         state.frames.push(time - last);
@@ -124,7 +134,10 @@ describe('long chat performance', () => {
     const cpuBefore = await mainCpuSeconds();
     await running.page.evaluate(() => window.api.invoke('chat:send', { text: 'Explain everything in detail' }));
     await running.page.waitForFunction(
-      (tail) => [...document.querySelectorAll('.message.assistant:not(.streaming)')].some((node) => node.textContent?.includes(tail)),
+      (tail) =>
+        [...document.querySelectorAll('.message.assistant:not(.streaming)')].some((node) =>
+          node.textContent?.includes(tail),
+        ),
       'Part 19',
       { timeout: 60_000, polling: 100 },
     );
@@ -136,7 +149,7 @@ describe('long chat performance', () => {
       return { frames: state.frames as number[], long: state.long as number[] };
     });
     const sorted = [...perf.frames].sort((a, b) => a - b);
-    const at = (q: number) => Math.round(sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))] * 10) / 10;
+    const at = (q: number) => Math.round(sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))]! * 10) / 10;
     results.push({
       label,
       items,
@@ -164,7 +177,8 @@ describe('long chat performance', () => {
       const start = performance.now();
       await window.api.invoke('history:open', id);
       // Wait until the transcript is on screen and painted.
-      while (document.querySelectorAll('.transcript > *').length === 0) await new Promise((resolve) => setTimeout(resolve, 5));
+      while (document.querySelectorAll('.transcript > *').length === 0)
+        await new Promise((resolve) => setTimeout(resolve, 5));
       await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       return Math.round(performance.now() - start);
     }, LONG_ID);

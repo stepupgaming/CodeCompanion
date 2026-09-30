@@ -16,7 +16,7 @@ describe('multiple open projects', () => {
   let betaId: string;
 
   beforeAll(async () => {
-    root = mkdtempSync(join(tmpdir(), 'patch-projects-'));
+    root = mkdtempSync(join(tmpdir(), 'cc-projects-'));
     alpha = join(root, 'Alpha');
     beta = join(root, 'Beta');
     for (const path of [alpha, beta]) mkdirSync(path);
@@ -24,7 +24,9 @@ describe('multiple open projects', () => {
     writeFileSync(join(beta, 'notes.txt'), 'Only Beta has bananas.');
     claude = new MockClaude();
     running = await launchApp({ PATCH_TEST_ANTHROPIC_URL: await claude.start() });
-    await running.page.evaluate(() => window.api.invoke('settings:set-secret', 'anthropicApiKey', 'sk-ant-projects-test'));
+    await running.page.evaluate(() =>
+      window.api.invoke('settings:set-secret', 'anthropicApiKey', 'sk-ant-projects-test'),
+    );
   });
 
   afterAll(async () => {
@@ -41,7 +43,10 @@ describe('multiple open projects', () => {
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
     // Say what the chat looked like, so a failure can be told apart from a slow run.
-    const state = current?.transcript.map((item) => `${item.kind}${'text' in item ? `: ${item.text.slice(0, 80)}` : ''}${'status' in item ? ` (${item.status})` : ''}`);
+    const state = current?.transcript.map(
+      (item) =>
+        `${item.kind}${'text' in item ? `: ${item.text.slice(0, 80)}` : ''}${'status' in item ? ` (${item.status})` : ''}`,
+    );
     throw new Error(
       `Timed out waiting for project chat. busy=${current?.busy}, requests=${claude.agentRequests.length}, transcript=${JSON.stringify(state)}, main stderr=${running.mainErrors.join('').slice(-500)}`,
     );
@@ -49,23 +54,34 @@ describe('multiple open projects', () => {
 
   async function readNotes(answer: string): Promise<ChatSnapshot> {
     claude.script(
-      { blocks: [{ type: 'tool_use', id: `read-${answer}`, name: 'read_file', input: { path: 'notes.txt' } }], stopReason: 'tool_use' },
+      {
+        blocks: [{ type: 'tool_use', id: `read-${answer}`, name: 'read_file', input: { path: 'notes.txt' } }],
+        stopReason: 'tool_use',
+      },
       { blocks: [{ type: 'text', text: answer }], stopReason: 'end_turn' },
     );
     await running.page.getByLabel('Message', { exact: true }).fill('Read this project’s notes');
     await running.page.getByLabel('Message', { exact: true }).press('Enter');
-    return waitFor((chat) => !chat.busy && chat.transcript.some((item) => item.kind === 'assistant' && item.text === answer));
+    return waitFor(
+      (chat) => !chat.busy && chat.transcript.some((item) => item.kind === 'assistant' && item.text === answer),
+    );
   }
 
   it('keeps chats, drafts and workspace file reads separate when switching tabs', async () => {
     await running.page.evaluate((path) => window.api.invoke('project:open', path), alpha);
     // The IPC reply can arrive before the renderer restores this project's draft.
-    await running.page.getByRole('navigation', { name: 'Open projects' }).getByRole('button', { name: 'Alpha', exact: true }).waitFor();
+    await running.page
+      .getByRole('navigation', { name: 'Open projects' })
+      .getByRole('button', { name: 'Alpha', exact: true })
+      .waitFor();
     alphaId = (await readNotes('Alpha ready')).id;
     expect(JSON.stringify(claude.agentRequests.at(-1).messages.at(-1))).toContain('Only Alpha has apples');
     await running.page.getByLabel('Message', { exact: true }).fill('Unsaved Alpha draft');
     await running.page.evaluate((path) => window.api.invoke('project:open', path), beta);
-    await running.page.getByRole('navigation', { name: 'Open projects' }).getByRole('button', { name: 'Beta', exact: true }).waitFor();
+    await running.page
+      .getByRole('navigation', { name: 'Open projects' })
+      .getByRole('button', { name: 'Beta', exact: true })
+      .waitFor();
     expect(await running.page.getByLabel('Message', { exact: true }).inputValue()).toBe('');
     betaId = (await readNotes('Beta ready')).id;
     expect(betaId).not.toBe(alphaId);
@@ -83,10 +99,22 @@ describe('multiple open projects', () => {
   });
 
   it('rejects switching during an approval and retains stopped state across project switches', async () => {
-    claude.script({ blocks: [{ type: 'tool_use', id: 'pending-project', name: 'run_command', input: { command: 'echo pending' } }], stopReason: 'tool_use' });
+    claude.script({
+      blocks: [{ type: 'tool_use', id: 'pending-project', name: 'run_command', input: { command: 'echo pending' } }],
+      stopReason: 'tool_use',
+    });
     await running.page.evaluate(() => window.api.invoke('chat:send', { text: 'Run a command' }));
-    await waitFor((chat) => chat.transcript.some((item) => item.kind === 'tool' && item.status === 'awaiting-approval'));
-    const error = await running.page.evaluate((path) => window.api.invoke('project:open', path).then(() => '', (error) => error.message), beta);
+    await waitFor((chat) =>
+      chat.transcript.some((item) => item.kind === 'tool' && item.status === 'awaiting-approval'),
+    );
+    const error = await running.page.evaluate(
+      (path) =>
+        window.api.invoke('project:open', path).then(
+          () => '',
+          (error) => error.message,
+        ),
+      beta,
+    );
     expect(error).toContain('Stop the current task');
     expect((await running.page.evaluate(() => window.api.invoke('project:current')))?.path).toBe(alpha);
     await running.page.evaluate(() => window.api.invoke('chat:stop'));

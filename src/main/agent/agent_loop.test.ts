@@ -5,7 +5,14 @@ import type { ApprovalMode } from '@shared/settings';
 import { AnthropicConversation, createAnthropicClient } from '../llm/anthropic';
 import { anthropicStream, MockApiServer } from '../llm/test_server';
 import type { Conversation, ImageData, ToolResult, TurnRequest, TurnResult, UserInput } from '../llm/types';
-import { defineTool, ToolError, type AgentTool, type EditUndo, type ToolContext, type ToolOutput } from '../tools/types';
+import {
+  defineTool,
+  ToolError,
+  type AgentTool,
+  type EditUndo,
+  type ToolContext,
+  type ToolOutput,
+} from '../tools/types';
 import { Agent, type DroppedFieldError } from './agent';
 
 type Step = Partial<TurnResult> | ((request: TurnRequest) => Promise<Partial<TurnResult>>);
@@ -57,6 +64,10 @@ class ScriptedConversation implements Conversation {
   }
 
   applyCompaction(): void {}
+
+  hasPendingToolCalls(): boolean {
+    return false;
+  }
 }
 
 const image: ImageData = { mediaType: 'image/png', base64: 'AAAA' };
@@ -163,7 +174,7 @@ describe('Agent: tool-result pairing', () => {
     expect(await agent.send({ text: 'go' }, new AbortController().signal)).toBe(false);
 
     expect(conversation.results).toHaveLength(1);
-    expect(conversation.results[0].map((result) => result.id)).toEqual(['t1', 't2', 't3', 't4', 't5', 't6']);
+    expect(conversation.results[0]!.map((result) => result.id)).toEqual(['t1', 't2', 't3', 't4', 't5', 't6']);
     expect(conversation.results[0]).toMatchObject([
       { content: 'saw a', images: [image] },
       { content: 'Unknown tool: missing', isError: true },
@@ -172,17 +183,17 @@ describe('Agent: tool-result pairing', () => {
       { content: 'Error: kaput', isError: true },
       { content: 'failed softly', isError: true },
     ]);
-    expect(conversation.results[0][0].isError).toBeUndefined();
+    expect(conversation.results[0]![0]!.isError).toBeUndefined();
 
     // Unknown tools and invalid input never show up as started tools; everything else ends with a status.
     const starts = eventsOf(events, 'tool-start');
     expect(starts.map((event) => event.name)).toEqual(['strict', 'denied', 'crash', 'soft']);
     expect(new Set(starts.map((event) => event.id))).toHaveLength(4);
     expect(eventsOf(events, 'tool-end').map((event) => [event.id, event.status, event.summary])).toEqual([
-      [starts[0].id, 'done', 'Saw a'],
-      [starts[1].id, 'error', 'denied failed'],
-      [starts[2].id, 'error', 'crash failed'],
-      [starts[3].id, 'error', 'Soft fail'],
+      [starts[0]!.id, 'done', 'Saw a'],
+      [starts[1]!.id, 'error', 'denied failed'],
+      [starts[2]!.id, 'error', 'crash failed'],
+      [starts[3]!.id, 'error', 'Soft fail'],
     ]);
   });
 
@@ -197,14 +208,16 @@ describe('Agent: tool-result pairing', () => {
 
   it('keeps the transcript event id for a call without an id', async () => {
     const look = tool('look', () => ({ content: 'ok' }));
-    const { agent, conversation, events } = setup([{ toolCalls: [call('', 'look')] }, { text: 'done' }], { tools: [look] });
+    const { agent, conversation, events } = setup([{ toolCalls: [call('', 'look')] }, { text: 'done' }], {
+      tools: [look],
+    });
     await agent.send({ text: 'go' }, new AbortController().signal);
 
-    const [start] = eventsOf(events, 'tool-start');
-    const [end] = eventsOf(events, 'tool-end');
+    const start = eventsOf(events, 'tool-start')[0]!;
+    const end = eventsOf(events, 'tool-end')[0]!;
     expect(start.id).not.toBe('');
     expect(end.id).toBe(start.id);
-    expect(conversation.results[0][0].id).toBe('');
+    expect(conversation.results[0]![0]!.id).toBe('');
   });
 
   it('streams tool progress and only shows the output of command tools', async () => {
@@ -220,10 +233,10 @@ describe('Agent: tool-result pairing', () => {
     await agent.send({ text: 'go' }, new AbortController().signal);
 
     const starts = eventsOf(events, 'tool-start');
-    expect(eventsOf(events, 'tool-progress')).toEqual([{ type: 'tool-progress', id: starts[0].id, text: 'line 1' }]);
+    expect(eventsOf(events, 'tool-progress')).toEqual([{ type: 'tool-progress', id: starts[0]!.id, text: 'line 1' }]);
     expect(eventsOf(events, 'tool-end').map((event) => [event.id, event.output])).toEqual([
-      [starts[0].id, 'exit code 0'],
-      [starts[1].id, undefined],
+      [starts[0]!.id, 'exit code 0'],
+      [starts[1]!.id, undefined],
     ]);
   });
 
@@ -235,19 +248,26 @@ describe('Agent: tool-result pairing', () => {
         throw new Error('target file is missing');
       },
     });
-    const { agent, conversation, events, requestApproval } = setup([{ toolCalls: [call('e1', 'edit')] }, { text: 'ok' }], {
-      mode: 'ask',
-      tools: [edit],
-    });
+    const { agent, conversation, events, requestApproval } = setup(
+      [{ toolCalls: [call('e1', 'edit')] }, { text: 'ok' }],
+      {
+        mode: 'ask',
+        tools: [edit],
+      },
+    );
     await agent.send({ text: 'go' }, new AbortController().signal);
 
     expect(run).not.toHaveBeenCalled();
     expect(requestApproval).not.toHaveBeenCalled();
-    expect(conversation.results[0]).toEqual([{ id: 'e1', content: 'target file is missing', isError: true }]);
-    const eventId = eventsOf(events, 'tool-start')[0].id;
+    expect(conversation.results[0]![0]).toEqual({ id: 'e1', content: 'target file is missing', isError: true });
+    const eventId = eventsOf(events, 'tool-start')[0]!.id;
     expect(eventId).not.toBe('e1');
     expect(eventsOf(events, 'tool-start')[0]).toMatchObject({ awaitingApproval: false });
-    expect(eventsOf(events, 'tool-end')[0]).toMatchObject({ id: eventId, status: 'error', output: 'target file is missing' });
+    expect(eventsOf(events, 'tool-end')[0]).toMatchObject({
+      id: eventId,
+      status: 'error',
+      output: 'target file is missing',
+    });
   });
 });
 
@@ -279,8 +299,20 @@ describe('Agent: dropped-field reporting', () => {
     await agent.send({ text: 'go' }, new AbortController().signal);
 
     expect(reported).toEqual([
-      { tool: 'edit_file', model: 'test-model', missing: ['new_string'], invalid: [], received: ['path', 'old_string'] },
-      { tool: 'edit_file', model: 'test-model', missing: ['new_string'], invalid: ['path'], received: ['path', 'old_string'] },
+      {
+        tool: 'edit_file',
+        model: 'test-model',
+        missing: ['new_string'],
+        invalid: [],
+        received: ['path', 'old_string'],
+      },
+      {
+        tool: 'edit_file',
+        model: 'test-model',
+        missing: ['new_string'],
+        invalid: ['path'],
+        received: ['path', 'old_string'],
+      },
     ]);
     expect(JSON.stringify(reported)).not.toMatch(/hunter2|secret\.ts/);
   });
@@ -313,16 +345,20 @@ describe('Agent: dropped-field reporting', () => {
     await agent.send({ text: 'go' }, new AbortController().signal);
 
     expect(reported[0]).toMatchObject({ missing: ['path', 'old_string', 'new_string'], received: [] });
-    expect(conversation.results[0][0]).toMatchObject({ isError: true });
+    expect(conversation.results[0]![0]).toMatchObject({ isError: true });
   });
 });
 
 describe('Agent: undoable edits', () => {
   const undo: EditUndo = { path: 'src/a.ts', before: Buffer.from('old'), afterHash: 'abc' };
   const editing = (output: Partial<ToolOutput> = {}) =>
-    tool('edit_file', () => ({ content: 'Edited src/a.ts.', summary: 'Edited src/a.ts', path: 'src/a.ts', undo, ...output }), {
-      requiresApproval: true,
-    });
+    tool(
+      'edit_file',
+      () => ({ content: 'Edited src/a.ts.', summary: 'Edited src/a.ts', path: 'src/a.ts', undo, ...output }),
+      {
+        requiresApproval: true,
+      },
+    );
   const run = async (edit: AgentTool, onEditApplied?: (toolId: string, edit: EditUndo) => void) => {
     const setUp = setup([{ toolCalls: [call('t1', 'edit_file')] }, { text: 'done' }], { tools: [edit], onEditApplied });
     await setUp.agent.send({ text: 'go' }, new AbortController().signal);
@@ -333,15 +369,25 @@ describe('Agent: undoable edits', () => {
     const kept: Array<[string, EditUndo]> = [];
     const { events } = await run(editing(), (toolId, edit) => kept.push([toolId, edit]));
 
-    const eventId = eventsOf(events, 'tool-start')[0].id;
+    const eventId = eventsOf(events, 'tool-start')[0]!.id;
     expect(kept).toEqual([[eventId, undo]]);
-    expect(eventsOf(events, 'tool-end')[0]).toMatchObject({ id: eventId, status: 'done', path: 'src/a.ts', undoable: true });
+    expect(eventsOf(events, 'tool-end')[0]).toMatchObject({
+      id: eventId,
+      status: 'done',
+      path: 'src/a.ts',
+      undoable: true,
+    });
   });
 
   it('does not show the backup to the model', async () => {
     const { conversation } = await run(editing(), () => {});
     expect(JSON.stringify(conversation.results)).not.toContain('afterHash');
-    expect(conversation.results[0][0]).toEqual({ id: 't1', content: 'Edited src/a.ts.', isError: undefined, images: undefined });
+    expect(conversation.results[0]![0]).toEqual({
+      id: 't1',
+      content: 'Edited src/a.ts.',
+      isError: undefined,
+      images: undefined,
+    });
   });
 
   it('reports the edit as done but not undoable when the backup could not be kept', async () => {
@@ -350,16 +396,16 @@ describe('Agent: undoable edits', () => {
     });
 
     expect(eventsOf(events, 'tool-end')[0]).toMatchObject({ status: 'done', undoable: false });
-    expect(conversation.results[0][0].isError).toBeUndefined();
+    expect(conversation.results[0]![0]!.isError).toBeUndefined();
   });
 
   it('offers no undo when nothing keeps backups, when the tool has none, or when the edit failed', async () => {
     const noKeeper = await run(editing());
-    expect(eventsOf(noKeeper.events, 'tool-end')[0].undoable).toBe(false);
+    expect(eventsOf(noKeeper.events, 'tool-end')[0]!.undoable).toBe(false);
 
     const kept = vi.fn();
     const plain = await run(editing({ undo: undefined }), kept);
-    expect(eventsOf(plain.events, 'tool-end')[0].undoable).toBeUndefined();
+    expect(eventsOf(plain.events, 'tool-end')[0]!.undoable).toBeUndefined();
 
     const failed = await run(editing({ isError: true }), kept);
     expect(eventsOf(failed.events, 'tool-end')[0]).toMatchObject({ status: 'error', undoable: undefined });
@@ -450,11 +496,13 @@ describe('Agent: approvals', () => {
     expect(cardIds).toHaveLength(2);
     expect(new Set(cardIds)).toHaveLength(2);
     expect(requestApproval).toHaveBeenCalledTimes(2);
-    cardIds.forEach((id, index) => expect(requestApproval).toHaveBeenNthCalledWith(index + 1, id, expect.any(AbortSignal)));
+    cardIds.forEach((id, index) =>
+      expect(requestApproval).toHaveBeenNthCalledWith(index + 1, id, expect.any(AbortSignal)),
+    );
     expect(backups).toEqual(cardIds);
     expect(eventsOf(events, 'tool-end').map((event) => event.id)).toEqual(cardIds);
-    expect(conversation.results.map(([result]) => result.id)).toEqual(['reused', 'reused']);
-    expect(conversation.results.map(([result]) => result.content)).toEqual(['edited a.ts', 'edited b.ts']);
+    expect(conversation.results.map(([result]) => result!.id)).toEqual(['reused', 'reused']);
+    expect(conversation.results.map(([result]) => result!.content)).toEqual(['edited a.ts', 'edited b.ts']);
   });
 
   it('does not run an approved tool when the stop arrived while waiting', async () => {
@@ -473,8 +521,8 @@ describe('Agent: approvals', () => {
     expect(await agent.send({ text: 'go' }, controller.signal)).toBe(true);
 
     expect(run).not.toHaveBeenCalled();
-    expect(conversation.results[0][0]).toMatchObject({ id: 't1', isError: true });
-    expect(conversation.results[0][0].content).toContain('Stopped by the user before this action was approved');
+    expect(conversation.results[0]![0]).toMatchObject({ id: 't1', isError: true });
+    expect(conversation.results[0]![0]!.content).toContain('Stopped by the user before this action was approved');
     expect(eventsOf(events, 'tool-end')[0]).toMatchObject({ status: 'error', summary: 'Stopped' });
   });
 });
@@ -506,9 +554,12 @@ describe('Agent: stop', () => {
       ran.push('look');
       return { content: 'ok' };
     });
-    const { agent, conversation } = setup([{ toolCalls: [call('t1', 'slow'), call('t2', 'look')] }, { text: 'never' }], {
-      tools: [slow, look],
-    });
+    const { agent, conversation } = setup(
+      [{ toolCalls: [call('t1', 'slow'), call('t2', 'look')] }, { text: 'never' }],
+      {
+        tools: [slow, look],
+      },
+    );
 
     const sending = agent.send({ text: 'go' }, controller.signal);
     await running;
@@ -550,7 +601,7 @@ describe('Agent: stop', () => {
     ]);
 
     await expect(agent.send({ text: 'go' }, controller.signal)).rejects.toThrow('aborted');
-    const start = eventsOf(events, 'assistant-start')[0];
+    const start = eventsOf(events, 'assistant-start')[0]!;
     expect(eventsOf(events, 'assistant-end')).toEqual([{ type: 'assistant-end', id: start.id }]);
   });
 });
@@ -572,9 +623,12 @@ describe('Agent: resume', () => {
       ran.push('look');
       return { content: 'ok' };
     });
-    const { agent, conversation } = setup([{ toolCalls: [call('t1', 'slow'), call('t2', 'look')] }, { text: 'Carried on' }], {
-      tools: [slow, look],
-    });
+    const { agent, conversation } = setup(
+      [{ toolCalls: [call('t1', 'slow'), call('t2', 'look')] }, { text: 'Carried on' }],
+      {
+        tools: [slow, look],
+      },
+    );
 
     const sending = agent.send({ text: 'go' }, first.signal);
     await running;
@@ -585,9 +639,9 @@ describe('Agent: resume', () => {
 
     // Every call was answered before the continuation message, so the history stays valid for the provider.
     expect(conversation.log).toEqual(['user:go', 'turn', 'results:t1,t2', 'user:Continue the', 'turn']);
-    expect(conversation.users[0].text).toBe('go');
-    expect(conversation.users[1].text).toContain('do not repeat the original request');
-    expect(conversation.users[1].text).toContain('inspect the current state');
+    expect(conversation.users[0]!.text).toBe('go');
+    expect(conversation.users[1]!.text).toContain('do not repeat the original request');
+    expect(conversation.users[1]!.text).toContain('inspect the current state');
     expect(ran).toEqual([]);
   });
 
@@ -615,7 +669,7 @@ describe('Agent: error and limit paths', () => {
 
     const [start] = eventsOf(events, 'assistant-start');
     expect(events.map((event) => event.type)).toEqual(['assistant-start', 'assistant-delta', 'assistant-end']);
-    expect(eventsOf(events, 'assistant-end')[0]).toEqual({ type: 'assistant-end', id: start.id });
+    expect(eventsOf(events, 'assistant-end')[0]).toEqual({ type: 'assistant-end', id: start!.id });
     expect(conversation.results).toEqual([]);
     expect(agent.totals).toEqual({ inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 });
   });
@@ -624,7 +678,11 @@ describe('Agent: error and limit paths', () => {
     const look = tool('look', () => ({ content: 'ok' }));
     const { agent, conversation } = setup(
       [
-        { toolCalls: [call('t1', 'look')], usage: { inputTokens: 10, outputTokens: 2, cacheReadTokens: 4 }, contextTokens: 14 },
+        {
+          toolCalls: [call('t1', 'look')],
+          usage: { inputTokens: 10, outputTokens: 2, cacheReadTokens: 4 },
+          contextTokens: 14,
+        },
         async () => {
           throw new Error('rate limited');
         },
@@ -667,17 +725,27 @@ describe('Agent: error and limit paths', () => {
   it('does not run tool calls from a response cut off by a full context window', async () => {
     const run = vi.fn(() => ({ content: 'ran' }));
     const write = tool('write', run);
-    const { agent, conversation } = setup([{ stopReason: 'context_exceeded', toolCalls: [call('t1', 'write')] }, { text: 'ok' }], {
-      tools: [write],
-    });
+    const { agent, conversation } = setup(
+      [{ stopReason: 'context_exceeded', toolCalls: [call('t1', 'write')] }, { text: 'ok' }],
+      {
+        tools: [write],
+      },
+    );
     await agent.send({ text: 'go' }, new AbortController().signal);
 
     expect(run).not.toHaveBeenCalled();
-    expect(conversation.results[0][0]).toMatchObject({ id: 't1', isError: true, content: expect.stringContaining('may be cut off') });
+    expect(conversation.results[0]![0]).toMatchObject({
+      id: 't1',
+      isError: true,
+      content: expect.stringContaining('may be cut off'),
+    });
   });
 
   it('tells the user when the conversation is too long or the answer was cut off', async () => {
-    const { agent, events } = setup([{ stopReason: 'context_exceeded' }, { stopReason: 'max_tokens', text: 'half an ans' }]);
+    const { agent, events } = setup([
+      { stopReason: 'context_exceeded' },
+      { stopReason: 'max_tokens', text: 'half an ans' },
+    ]);
     const signal = new AbortController().signal;
 
     expect(await agent.send({ text: 'one' }, signal)).toBe(false);
@@ -691,7 +759,9 @@ describe('Agent: error and limit paths', () => {
 
   it('gives up after 200 model turns of tool calls', async () => {
     const look = tool('look', () => ({ content: 'ok' }));
-    const { agent, conversation, events } = setup((turn) => ({ toolCalls: [call(`t${turn}`, 'look')] }), { tools: [look] });
+    const { agent, conversation, events } = setup((turn) => ({ toolCalls: [call(`t${turn}`, 'look')] }), {
+      tools: [look],
+    });
 
     expect(await agent.send({ text: 'go' }, new AbortController().signal)).toBe(false);
 
@@ -704,9 +774,11 @@ describe('Agent: error and limit paths', () => {
 describe('Agent: retrying transient provider errors', () => {
   const httpError = (code: number, extra: Record<string, unknown> = {}) =>
     Object.assign(new Error(`HTTP ${code}`), { status: code, ...extra });
-  const fail = (error: Error): Step => async () => {
-    throw error;
-  };
+  const fail =
+    (error: Error): Step =>
+    async () => {
+      throw error;
+    };
 
   it('waits, says so in the chat, and tries the request again', async () => {
     const { agent, conversation, events, sleep } = setup([fail(httpError(503)), { text: 'Recovered.' }]);
@@ -716,8 +788,10 @@ describe('Agent: retrying transient provider errors', () => {
     expect(conversation.turns).toBe(2);
     expect(conversation.users).toHaveLength(1);
     expect(sleep).toHaveBeenCalledTimes(1);
-    expect(sleep.mock.calls[0][0]).toBe(2000);
-    expect(eventsOf(events, 'notice').map((event) => event.text)).toEqual(['Server error (503). Retrying in 2 s (retry 1 of 4)…']);
+    expect(sleep.mock.calls[0]![0]).toBe(2000);
+    expect(eventsOf(events, 'notice').map((event) => event.text)).toEqual([
+      'Server error (503). Retrying in 2 s (retry 1 of 4)…',
+    ]);
     expect(eventsOf(events, 'assistant-end').at(-1)).toMatchObject({ text: 'Recovered.' });
     expect(eventsOf(events, 'error')).toEqual([]);
   });
@@ -745,13 +819,19 @@ describe('Agent: retrying transient provider errors', () => {
       'assistant-end',
     ]);
     // The restart and end belong to the first attempt, the answer to the second.
-    expect(eventsOf(events, 'assistant-restart')[0].id).toBe(starts[0]);
+    expect(eventsOf(events, 'assistant-restart')[0]!.id).toBe(starts[0]);
     expect(eventsOf(events, 'assistant-end').at(-1)).toMatchObject({ id: starts[1], text: 'Full answer.' });
   });
 
   it('backs off longer each time and gives up with the original error after four retries', async () => {
     const original = httpError(500);
-    const { agent, conversation, events, sleep } = setup([fail(original), fail(original), fail(original), fail(original), fail(original)]);
+    const { agent, conversation, events, sleep } = setup([
+      fail(original),
+      fail(original),
+      fail(original),
+      fail(original),
+      fail(original),
+    ]);
 
     await expect(agent.send({ text: 'go' }, new AbortController().signal)).rejects.toBe(original);
 
@@ -782,7 +862,12 @@ describe('Agent: retrying transient provider errors', () => {
   });
 
   it('shows errors that will not pass right away instead of retrying', async () => {
-    for (const error of [httpError(400), httpError(404), httpError(429, { code: 'insufficient_quota' }), new Error('plain failure')]) {
+    for (const error of [
+      httpError(400),
+      httpError(404),
+      httpError(429, { code: 'insufficient_quota' }),
+      new Error('plain failure'),
+    ]) {
       const { agent, conversation, sleep } = setup([fail(error)]);
       await expect(agent.send({ text: 'go' }, new AbortController().signal)).rejects.toBe(error);
       expect(conversation.turns).toBe(1);
@@ -797,15 +882,15 @@ describe('Agent: retrying transient provider errors', () => {
     ]);
     await agent.send({ text: 'go' }, new AbortController().signal);
 
-    expect(sleep.mock.calls[0][0]).toBe(7000);
-    expect(eventsOf(events, 'notice')[0].text).toBe('Rate limited (429). Retrying in 7 s (retry 1 of 4)…');
+    expect(sleep.mock.calls[0]![0]).toBe(7000);
+    expect(eventsOf(events, 'notice')[0]!.text).toBe('Rate limited (429). Retrying in 7 s (retry 1 of 4)…');
   });
 
   it('retries a dropped connection', async () => {
     const dropped = Object.assign(new TypeError('fetch failed'), { cause: { code: 'ECONNRESET' } });
     const { agent, events } = setup([fail(dropped), { text: 'ok' }]);
     await agent.send({ text: 'go' }, new AbortController().signal);
-    expect(eventsOf(events, 'notice')[0].text).toContain('Connection problem (ECONNRESET)');
+    expect(eventsOf(events, 'notice')[0]!.text).toContain('Connection problem (ECONNRESET)');
   });
 
   it('retries only the failed request, after the tools of earlier turns have run and been recorded', async () => {
@@ -813,7 +898,11 @@ describe('Agent: retrying transient provider errors', () => {
     const look = tool('look', run);
     const { agent, conversation } = setup(
       [
-        { toolCalls: [call('t1', 'look')], usage: { inputTokens: 10, outputTokens: 2, cacheReadTokens: 0 }, contextTokens: 10 },
+        {
+          toolCalls: [call('t1', 'look')],
+          usage: { inputTokens: 10, outputTokens: 2, cacheReadTokens: 0 },
+          contextTokens: 10,
+        },
         fail(httpError(503)),
         { text: 'done', usage: { inputTokens: 20, outputTokens: 3, cacheReadTokens: 0 }, contextTokens: 20 },
       ],
@@ -877,7 +966,7 @@ describe('Agent: streaming and usage', () => {
     ]);
     await agent.send({ text: 'go' }, new AbortController().signal);
 
-    const [start] = eventsOf(events, 'assistant-start');
+    const start = eventsOf(events, 'assistant-start')[0]!;
     expect(events.filter((event) => event.type !== 'usage')).toEqual([
       { type: 'assistant-start', id: start.id },
       { type: 'thinking-delta', id: start.id, text: 'hmm' },
@@ -892,7 +981,11 @@ describe('Agent: streaming and usage', () => {
     const look = tool('look', () => ({ content: 'ok' }));
     const { agent, events } = setup(
       [
-        { toolCalls: [call('t1', 'look')], usage: { inputTokens: 10, outputTokens: 2, cacheReadTokens: 4, cacheWriteTokens: 1 }, contextTokens: 15 },
+        {
+          toolCalls: [call('t1', 'look')],
+          usage: { inputTokens: 10, outputTokens: 2, cacheReadTokens: 4, cacheWriteTokens: 1 },
+          contextTokens: 15,
+        },
         { text: 'done', usage: { inputTokens: 20, outputTokens: 3, cacheReadTokens: 6 }, contextTokens: 26 },
       ],
       { tools: [look] },
@@ -910,38 +1003,51 @@ describe('Agent: streaming and usage', () => {
 });
 
 describe('Agent: provider continuation usage', () => {
-  it.each(['pause_turn', 'compaction'])('keeps final context separate from billable input after %s', async (stopReason) => {
-    const server = new MockApiServer();
-    const baseURL = await server.start();
-    try {
-      for (const [inputTokens, reason] of [[140_000, stopReason], [40_000, 'end_turn']] as const) {
-        const stream = anthropicStream([{ type: 'text', text: 'part' }], reason);
-        const start = stream.find((event) => event.event === 'message_start')!.data as {
-          message: { usage: { input_tokens: number; cache_read_input_tokens: number; cache_creation_input_tokens: number } };
-        };
-        Object.assign(start.message.usage, {
-          input_tokens: inputTokens, cache_read_input_tokens: 0, cache_creation_input_tokens: 0,
+  it.each(['pause_turn', 'compaction'])(
+    'keeps final context separate from billable input after %s',
+    async (stopReason) => {
+      const server = new MockApiServer();
+      const baseURL = await server.start();
+      try {
+        for (const [inputTokens, reason] of [
+          [140_000, stopReason],
+          [40_000, 'end_turn'],
+        ] as const) {
+          const stream = anthropicStream([{ type: 'text', text: 'part' }], reason);
+          const start = stream.find((event) => event.event === 'message_start')!.data as {
+            message: {
+              usage: { input_tokens: number; cache_read_input_tokens: number; cache_creation_input_tokens: number };
+            };
+          };
+          Object.assign(start.message.usage, {
+            input_tokens: inputTokens,
+            cache_read_input_tokens: 0,
+            cache_creation_input_tokens: 0,
+          });
+          server.queueSse(stream);
+        }
+        const events: ChatEvent[] = [];
+        const agent = new Agent({
+          conversation: new AnthropicConversation(createAnthropicClient('sk-test', baseURL), {
+            model: 'claude-opus-5-5',
+            effort: 'high',
+          }),
+          system: 'sys',
+          tools: () => [],
+          approvalMode: () => 'auto',
+          requestApproval: async () => ({ approved: true }),
+          toolContext: () => {
+            throw new Error('No tools in this turn');
+          },
+          emit: (event) => events.push(event),
         });
-        server.queueSse(stream);
-      }
-      const events: ChatEvent[] = [];
-      const agent = new Agent({
-        conversation: new AnthropicConversation(createAnthropicClient('sk-test', baseURL), {
-          model: 'claude-opus-5-5', effort: 'high',
-        }),
-        system: 'sys',
-        tools: () => [],
-        approvalMode: () => 'auto',
-        requestApproval: async () => ({ approved: true }),
-        toolContext: () => { throw new Error('No tools in this turn'); },
-        emit: (event) => events.push(event),
-      });
-      await agent.send({ text: 'Continue' }, new AbortController().signal);
+        await agent.send({ text: 'Continue' }, new AbortController().signal);
 
-      expect(agent.totals).toMatchObject({ inputTokens: 180_000, contextTokens: 40_000 });
-      expect(eventsOf(events, 'usage').at(-1)?.totals).toMatchObject({ inputTokens: 180_000, contextTokens: 40_000 });
-    } finally {
-      await server.stop();
-    }
-  });
+        expect(agent.totals).toMatchObject({ inputTokens: 180_000, contextTokens: 40_000 });
+        expect(eventsOf(events, 'usage').at(-1)?.totals).toMatchObject({ inputTokens: 180_000, contextTokens: 40_000 });
+      } finally {
+        await server.stop();
+      }
+    },
+  );
 });

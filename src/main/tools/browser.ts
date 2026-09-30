@@ -44,7 +44,8 @@ export const browserTool = defineTool({
   },
   async run({ url, screenshot }, context) {
     if (!context.browser) throw new ToolError('The browser panel is not available.');
-    if (!/^(https?|file):\/\//i.test(url)) throw new ToolError('Use a full URL including http://, https:// or file://.');
+    if (!/^(https?|file):\/\//i.test(url))
+      throw new ToolError('Use a full URL including http://, https:// or file://.');
     url = confineFileUrl(url, context.workspace);
 
     const approved = new URL(url);
@@ -70,7 +71,9 @@ export const browserTool = defineTool({
       truncateOutput(page.console.join('\n'), 10_000) || '(empty)',
     ].filter(Boolean);
 
-    const images = screenshot ? [{ mediaType: 'image/png' as const, base64: await context.browser.screenshot() }] : undefined;
+    const images = screenshot
+      ? [{ mediaType: 'image/png' as const, base64: await context.browser.screenshot() }]
+      : undefined;
     return {
       content: lines.join('\n'),
       images,

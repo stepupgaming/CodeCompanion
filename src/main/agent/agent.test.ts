@@ -2,7 +2,15 @@ import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import type { ChatEvent, UsageTotals } from '@shared/chat';
 import type { ApprovalMode } from '@shared/settings';
-import type { CompactionPlan, CompletionClient, Conversation, ToolResult, TurnRequest, TurnResult, UserInput } from '../llm/types';
+import type {
+  CompactionPlan,
+  CompletionClient,
+  Conversation,
+  ToolResult,
+  TurnRequest,
+  TurnResult,
+  UserInput,
+} from '../llm/types';
 import { defineTool, type AgentTool, type ToolContext } from '../tools/types';
 import { ChatSession, type ChatSessionOptions } from './session';
 
@@ -14,8 +22,13 @@ class ScriptedConversation implements Conversation {
   readonly users: UserInput[] = [];
   readonly toolResults: ToolResult[][] = [];
   turns = 0;
+  // Simulates a chat saved mid-task: the history ends with tool calls that have no results.
+  pending = false;
 
-  constructor(private readonly steps: Step[], provider: 'anthropic' | 'openai' = 'anthropic') {
+  constructor(
+    private readonly steps: Step[],
+    provider: 'anthropic' | 'openai' = 'anthropic',
+  ) {
     this.provider = provider;
   }
 
@@ -25,6 +38,11 @@ class ScriptedConversation implements Conversation {
 
   addToolResults(results: ToolResult[]): void {
     this.toolResults.push(results);
+    this.pending = false;
+  }
+
+  hasPendingToolCalls(): boolean {
+    return this.pending;
   }
 
   async runTurn(request: TurnRequest): Promise<TurnResult> {
@@ -107,11 +125,14 @@ function setup(
     pendingNotes = undefined as string[] | undefined,
     smallModel = (() => null) as ChatSessionOptions['smallModel'],
     onEditApplied = undefined as ChatSessionOptions['onEditApplied'],
+    pending = false,
   } = {},
 ) {
   ran.length = 0;
   const conversation = new ScriptedConversation(steps, provider);
+  conversation.pending = pending;
   const events: ChatEvent[] = [];
+  const saves: boolean[] = [];
   const session = new ChatSession({
     projectPath: '/project',
     conversation,
@@ -126,22 +147,32 @@ function setup(
     pendingNotes,
     approvalMode: () => mode,
     isPreApproved,
-    toolContext: (base) => ({ ...base, workspace: null as never, shell: null as never, browser: null, codeSearch: null, webSearch: null }) as ToolContext,
+    toolContext: (base) =>
+      ({
+        ...base,
+        workspace: null as never,
+        shell: null as never,
+        browser: null,
+        codeSearch: null,
+        webSearch: null,
+      }) as ToolContext,
     smallModel,
     onEditApplied,
     onEvent: (event) => events.push(event),
-    onChange: () => {},
+    onChange: (immediate) => saves.push(immediate),
   });
   const nextApproval = () =>
     new Promise<string>((resolve) => {
       const check = () => {
-        const pending = session.snapshot().transcript.find((item) => item.kind === 'tool' && item.status === 'awaiting-approval');
+        const pending = session
+          .snapshot()
+          .transcript.find((item) => item.kind === 'tool' && item.status === 'awaiting-approval');
         if (pending) resolve(pending.id);
         else setTimeout(check, 5);
       };
       check();
     });
-  return { conversation, session, events, nextApproval };
+  return { conversation, session, events, saves, nextApproval };
 }
 
 describe('agent loop', () => {
@@ -180,7 +211,10 @@ describe('agent loop', () => {
   });
 
   it('waits for approval and shows a preview', async () => {
-    const { session, nextApproval } = setup([{ toolCalls: [{ id: 't1', name: 'change', input: { to: 'x' } }] }, { text: 'ok' }]);
+    const { session, nextApproval } = setup([
+      { toolCalls: [{ id: 't1', name: 'change', input: { to: 'x' } }] },
+      { text: 'ok' },
+    ]);
     const sending = session.send({ text: 'change it' });
     const id = await nextApproval();
     const pending = session.snapshot().transcript.find((item) => item.id === id);
@@ -207,7 +241,7 @@ describe('agent loop', () => {
 
     expect(ran).toEqual([]);
     expect(conversation.turns).toBe(1);
-    expect(conversation.toolResults[0].map((result) => [result.id, result.isError])).toEqual([
+    expect(conversation.toolResults[0]!.map((result) => [result.id, result.isError])).toEqual([
       ['t1', true],
       ['t2', true],
     ]);
@@ -223,7 +257,7 @@ describe('agent loop', () => {
     await sending;
 
     expect(conversation.turns).toBe(2);
-    expect(conversation.toolResults[0][0].content).toContain('use y');
+    expect(conversation.toolResults[0]![0]!.content).toContain('use y');
   });
 
   it('skips approval in auto mode', async () => {
@@ -241,8 +275,8 @@ describe('agent loop', () => {
     ]);
     await session.send({ text: 'go' });
     expect(ran).toEqual([]);
-    expect(conversation.toolResults[0][0]).toMatchObject({ isError: true });
-    expect(conversation.toolResults[0][0].content).toContain('Invalid input for look');
+    expect(conversation.toolResults[0]![0]!).toMatchObject({ isError: true });
+    expect(conversation.toolResults[0]![0]!.content).toContain('Invalid input for look');
   });
 
   it('names missing fields and the fields that were received', async () => {
@@ -251,7 +285,7 @@ describe('agent loop', () => {
       { text: 'retrying' },
     ]);
     await session.send({ text: 'go' });
-    const content = conversation.toolResults[0][0].content;
+    const content = conversation.toolResults[0]![0]!.content;
     expect(content).toContain('required but missing');
     expect(content).toContain('Received fields: (none)');
   });
@@ -263,7 +297,7 @@ describe('agent loop', () => {
     ]);
     await session.send({ text: 'go' });
     expect(ran).toEqual([]);
-    expect(conversation.toolResults[0][0].content).toContain('output limit');
+    expect(conversation.toolResults[0]![0]!.content).toContain('output limit');
   });
 
   it('answers every pending call when stopped during approval', async () => {
@@ -306,8 +340,8 @@ describe('agent loop', () => {
 
     expect(ran).toEqual([]);
     expect(conversation.users).toHaveLength(2);
-    expect(conversation.users[0].text).toBe('change it');
-    expect(conversation.users[1].text).toContain('inspect the current state');
+    expect(conversation.users[0]!.text).toBe('change it');
+    expect(conversation.users[1]!.text).toContain('inspect the current state');
     expect(session.snapshot().transcript.filter((item) => item.kind === 'user')).toHaveLength(1);
     expect(session.snapshot().resumable).toBe(false);
   });
@@ -332,7 +366,7 @@ describe('agent loop', () => {
           request.callbacks.onText('partial');
           request.signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')));
         }),
-      async (request) => {
+      async () => {
         await new Promise((resolve) => setTimeout(resolve, 20));
         return { text: 'finished' };
       },
@@ -474,7 +508,11 @@ describe('agent loop', () => {
           return { content: 'probed' };
         }
         context.readFiles.add('/abs/a.ts');
-        return { content: 'Edited', path: 'src/a.ts', undo: { path: 'src/a.ts', before: Buffer.from('old'), afterHash: 'h' } };
+        return {
+          content: 'Edited',
+          path: 'src/a.ts',
+          undo: { path: 'src/a.ts', before: Buffer.from('old'), afterHash: 'h' },
+        };
       },
     });
     const edited = () => {
@@ -499,7 +537,7 @@ describe('agent loop', () => {
       await session.send({ text: 'edit it' });
 
       expect(kept).toHaveLength(1);
-      const editId = kept[0];
+      const editId = kept[0]!;
       expect(session.snapshot().transcript.find((item) => item.id === editId)).toMatchObject({ undo: 'available' });
       session.editUndone(editId, restored, '/abs/a.ts');
 
@@ -511,36 +549,41 @@ describe('agent loop', () => {
     it('tells the model with the next message, once, and shows the user only what they typed', async () => {
       const { session, conversation, kept } = edited();
       await session.send({ text: 'edit it' });
-      session.editUndone(kept[0], restored, '/abs/a.ts');
+      session.editUndone(kept[0]!, restored, '/abs/a.ts');
 
       await session.send({ text: 'now what?' });
       await session.send({ text: 'and then?' });
 
-      expect(conversation.users[0].text).toBe('edit it');
-      expect(conversation.users[1].text).toBe(
+      expect(conversation.users[0]!.text).toBe('edit it');
+      expect(conversation.users[1]!.text).toBe(
         '[Note from the app: The user undid your edit to src/a.ts: the file is back to how it was before that edit. Read it again before editing it.]\n\nnow what?',
       );
-      expect(conversation.users[2].text).toBe('and then?');
-      const shown = session.snapshot().transcript.filter((item) => item.kind === 'user').map((item) => item.text);
+      expect(conversation.users[2]!.text).toBe('and then?');
+      const shown = session
+        .snapshot()
+        .transcript.filter((item) => item.kind === 'user')
+        .map((item) => item.text);
       expect(shown).toEqual(['edit it', 'now what?', 'and then?']);
     });
 
     it('says that a created file was deleted, and lists several undos together', async () => {
       const { session, conversation, kept } = edited();
       await session.send({ text: 'edit it' });
-      session.editUndone(kept[0], { path: 'src/new.ts', action: 'deleted' }, '/abs/new.ts');
-      session.editUndone(kept[0], restored, '/abs/a.ts');
+      session.editUndone(kept[0]!, { path: 'src/new.ts', action: 'deleted' }, '/abs/new.ts');
+      session.editUndone(kept[0]!, restored, '/abs/a.ts');
       await session.send({ text: 'go on' });
 
-      expect(conversation.users[1].text).toContain('The user undid your creation of src/new.ts: the file was deleted.');
-      expect(conversation.users[1].text).toContain('The user undid your edit to src/a.ts');
-      expect(conversation.users[1].text.endsWith('go on')).toBe(true);
+      expect(conversation.users[1]!.text).toContain(
+        'The user undid your creation of src/new.ts: the file was deleted.',
+      );
+      expect(conversation.users[1]!.text).toContain('The user undid your edit to src/a.ts');
+      expect(conversation.users[1]!.text.endsWith('go on')).toBe(true);
     });
 
     it('makes the model read the file again: it no longer counts as read', async () => {
       const { session, kept } = edited();
       await session.send({ text: 'edit it' });
-      session.editUndone(kept[0], restored, '/abs/a.ts');
+      session.editUndone(kept[0]!, restored, '/abs/a.ts');
       await session.send({ text: 'probe' });
 
       expect(seenAsRead).toEqual([false]);
@@ -549,8 +592,8 @@ describe('agent loop', () => {
     it('persists pending undo notes through JSON and consumes them only once', async () => {
       const { session, kept } = edited();
       await session.send({ text: 'edit it' });
-      session.editUndone(kept[0], { path: 'src/new.ts', action: 'deleted' }, '/abs/new.ts');
-      session.editUndone(kept[0], restored, '/abs/a.ts');
+      session.editUndone(kept[0]!, { path: 'src/new.ts', action: 'deleted' }, '/abs/new.ts');
+      session.editUndone(kept[0]!, restored, '/abs/a.ts');
 
       const saved = JSON.parse(JSON.stringify(session.serialize())) as ReturnType<ChatSession['serialize']>;
       expect(saved.pendingNotes).toHaveLength(2);
@@ -562,28 +605,33 @@ describe('agent loop', () => {
       saved.pendingNotes?.push('This must not alias the reopened session.');
 
       await reopened.session.send({ text: 'continue' });
-      expect(reopened.conversation.users[0].text).toContain('The user undid your creation of src/new.ts');
-      expect(reopened.conversation.users[0].text).toContain('The user undid your edit to src/a.ts');
-      expect(reopened.conversation.users[0].text).not.toContain('must not alias');
+      expect(reopened.conversation.users[0]!.text).toContain('The user undid your creation of src/new.ts');
+      expect(reopened.conversation.users[0]!.text).toContain('The user undid your edit to src/a.ts');
+      expect(reopened.conversation.users[0]!.text).not.toContain('must not alias');
       const consumed = JSON.parse(JSON.stringify(reopened.session.serialize())) as ReturnType<ChatSession['serialize']>;
       expect(consumed.pendingNotes).toEqual([]);
 
       const reloaded = setup([{ text: 'Again.' }], { pendingNotes: consumed.pendingNotes });
       await reloaded.session.send({ text: 'next' });
-      expect(reloaded.conversation.users[0].text).toBe('next');
+      expect(reloaded.conversation.users[0]!.text).toBe('next');
     });
 
     it('loads old saves without pending notes', async () => {
       const reopened = setup([{ text: 'Done.' }], { pendingNotes: undefined });
       await reopened.session.send({ text: 'continue' });
-      expect(reopened.conversation.users[0].text).toBe('continue');
+      expect(reopened.conversation.users[0]!.text).toBe('continue');
       expect(reopened.session.serialize().pendingNotes).toEqual([]);
     });
 
     it('also tells the model when the stopped task is resumed', async () => {
       const kept: string[] = [];
       const { session, conversation } = setup(
-        [{ toolCalls: [{ id: 't1', name: 'file', input: {} }] }, { text: 'Edited.' }, abortingTurn, { text: 'Continued.' }],
+        [
+          { toolCalls: [{ id: 't1', name: 'file', input: {} }] },
+          { text: 'Edited.' },
+          abortingTurn,
+          { text: 'Continued.' },
+        ],
         { tools: () => [fileTool], mode: 'auto', onEditApplied: (toolId) => kept.push(toolId) },
       );
       await session.send({ text: 'edit it' });
@@ -592,19 +640,25 @@ describe('agent loop', () => {
       session.stop();
       await sending;
 
-      session.editUndone(kept[0], restored, '/abs/a.ts');
+      session.editUndone(kept[0]!, restored, '/abs/a.ts');
       await session.resume();
 
-      expect(conversation.users[2].text).toMatch(/^\[Note from the app: The user undid your edit to src\/a\.ts[^\]]*\]\n\nContinue the task/);
+      expect(conversation.users[2]!.text).toMatch(
+        /^\[Note from the app: The user undid your edit to src\/a\.ts[^\]]*\]\n\nContinue the task/,
+      );
     });
   });
 
   describe('compacting the chat', () => {
     const plan: CompactionPlan = { text: 'OLD TURNS AS TEXT', messages: 7, keepFrom: 3 };
     // Answers the compaction request; the chat title request that starts every chat is left to fail and fall back.
-    const summarizer = (handler: (prompt: string, signal?: AbortSignal) => Promise<{ summary: string }>): CompletionClient => ({
+    const summarizer = (
+      handler: (prompt: string, signal?: AbortSignal) => Promise<{ summary: string }>,
+    ): CompletionClient => ({
       complete: ((prompt: string, _schema: unknown, signal?: AbortSignal) =>
-        prompt.startsWith('Summarize the earlier part') ? handler(prompt, signal) : Promise.reject(new Error('no title'))) as CompletionClient['complete'],
+        prompt.startsWith('Summarize the earlier part')
+          ? handler(prompt, signal)
+          : Promise.reject(new Error('no title'))) as CompletionClient['complete'],
     });
 
     it('summarizes the older turns, applies the summary and says so in the chat', async () => {
@@ -626,7 +680,10 @@ describe('agent loop', () => {
       expect(prompts).toHaveLength(1);
       expect(prompts[0]).toContain('OLD TURNS AS TEXT');
       expect(conversation.applied).toEqual([{ summary: 'THE SUMMARY', keepFrom: 3 }]);
-      expect(session.snapshot().transcript.at(-1)).toMatchObject({ kind: 'notice', text: expect.stringContaining('Compacted 7 earlier messages') });
+      expect(session.snapshot().transcript.at(-1)).toMatchObject({
+        kind: 'notice',
+        text: expect.stringContaining('Compacted 7 earlier messages'),
+      });
       // The size of the prompt is not known until the next request.
       expect(session.snapshot().usage.contextTokens).toBeUndefined();
       expect(events.filter((event) => event.type === 'busy').slice(-2)).toEqual([
@@ -644,7 +701,10 @@ describe('agent loop', () => {
 
       expect(complete).not.toHaveBeenCalled();
       expect(conversation.applied).toEqual([]);
-      expect(session.snapshot().transcript.at(-1)).toMatchObject({ kind: 'notice', text: expect.stringContaining('not enough older history') });
+      expect(session.snapshot().transcript.at(-1)).toMatchObject({
+        kind: 'notice',
+        text: expect.stringContaining('not enough older history'),
+      });
     });
 
     it('asks for an API key when there is no model to summarize with', async () => {
@@ -665,7 +725,10 @@ describe('agent loop', () => {
       await session.compact();
 
       expect(conversation.applied).toEqual([]);
-      expect(session.snapshot().transcript.at(-1)).toMatchObject({ kind: 'error', text: 'Compacting failed: 529 overloaded' });
+      expect(session.snapshot().transcript.at(-1)).toMatchObject({
+        kind: 'error',
+        text: 'Compacting failed: 529 overloaded',
+      });
       expect(session.busy).toBe(false);
     });
 
@@ -684,7 +747,10 @@ describe('agent loop', () => {
       await compacting;
 
       expect(conversation.applied).toEqual([]);
-      expect(session.snapshot().transcript.at(-1)).toMatchObject({ kind: 'notice', text: expect.stringContaining('unchanged') });
+      expect(session.snapshot().transcript.at(-1)).toMatchObject({
+        kind: 'notice',
+        text: expect.stringContaining('unchanged'),
+      });
       expect(session.snapshot().resumable).toBe(false);
       expect(session.busy).toBe(false);
     });
@@ -811,12 +877,18 @@ describe('agent loop', () => {
 
   it('restores legacy saved usage without cache writes', () => {
     const { session } = setup([], { usage: { inputTokens: 7, outputTokens: 5, cacheReadTokens: 3 } });
-    expect(session.snapshot().usage).toEqual({ inputTokens: 7, outputTokens: 5, cacheReadTokens: 3, cacheWriteTokens: 0 });
+    expect(session.snapshot().usage).toEqual({
+      inputTokens: 7,
+      outputTokens: 5,
+      cacheReadTokens: 3,
+      cacheWriteTokens: 0,
+    });
   });
 
   it('normalizes legacy OpenAI input exactly once and suppresses custom endpoint pricing', () => {
     const { session } = setup([], {
-      provider: 'openai', officialPricing: false,
+      provider: 'openai',
+      officialPricing: false,
       usage: { inputTokens: 17, outputTokens: 5, cacheReadTokens: 3 },
     });
     expect(session.snapshot().usage.inputTokens).toBe(14);
@@ -826,12 +898,53 @@ describe('agent loop', () => {
   });
 
   it('accumulates multiple long requests without mutating earlier snapshots', async () => {
-    const usage = { inputTokens: 280_000, outputTokens: 17, cacheReadTokens: 3, cacheWriteTokens: 5, longContext: true };
-    const { session } = setup([{ text: 'first', usage }, { text: 'second', usage }]);
+    const usage = {
+      inputTokens: 280_000,
+      outputTokens: 17,
+      cacheReadTokens: 3,
+      cacheWriteTokens: 5,
+      longContext: true,
+    };
+    const { session } = setup([
+      { text: 'first', usage },
+      { text: 'second', usage },
+    ]);
     await session.send({ text: 'one' });
     const first = session.snapshot();
     await session.send({ text: 'two' });
     expect(first.usage.longContext?.inputTokens).toBe(280_000);
     expect(session.snapshot().usage.longContext?.inputTokens).toBe(560_000);
+  });
+});
+
+describe('crash recovery', () => {
+  it('saves a checkpoint immediately after every tool-result batch', async () => {
+    const { session, saves } = setup([
+      { toolCalls: [{ id: 't1', name: 'look', input: { what: 'a' } }] },
+      { toolCalls: [{ id: 't2', name: 'look', input: { what: 'b' } }] },
+      { text: 'done' },
+    ]);
+    await session.send({ text: 'go' });
+    // Two checkpoints (one per tool batch) plus the immediate save when the run finishes.
+    expect(saves.filter((immediate) => immediate)).toHaveLength(3);
+  });
+
+  it('treats a conversation with unanswered tool calls as resumable', async () => {
+    const { session } = setup([{ text: 'Continued.' }], { pending: true });
+    expect(session.snapshot().resumable).toBe(true);
+
+    await session.resume();
+    expect(session.snapshot().resumable).toBe(false);
+  });
+
+  it('marks tool rows left unfinished by a crash as interrupted', () => {
+    const { session } = setup([{ text: 'ok' }], {
+      transcript: [
+        { kind: 'user', id: 'u1', text: 'go', imageCount: 0 },
+        { kind: 'tool', id: 't1', name: 'look', status: 'running' },
+      ],
+    });
+    const tool = session.snapshot().transcript.find((item) => item.kind === 'tool');
+    expect(tool).toMatchObject({ status: 'error', summary: 'look was interrupted' });
   });
 });

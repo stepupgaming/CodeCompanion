@@ -31,7 +31,8 @@ describe('retrying transient provider errors (mock Claude API)', () => {
     const deadline = Date.now() + timeout;
     while (Date.now() < deadline) {
       const current = await snapshot();
-      if (!current.busy && current.transcript.some((item) => item.kind === 'assistant' || item.kind === 'error')) return current;
+      if (!current.busy && current.transcript.some((item) => item.kind === 'assistant' || item.kind === 'error'))
+        return current;
       await new Promise((resolve) => setTimeout(resolve, 200));
     }
     throw new Error('Timed out waiting for the chat');
@@ -51,7 +52,9 @@ describe('retrying transient provider errors (mock Claude API)', () => {
     // One request per attempt: the SDK no longer retries behind the app's back.
     expect(claude.agentRequests.length - before).toBe(3);
     expect(done.transcript.map((item) => item.kind)).toEqual(['user', 'notice', 'notice', 'assistant']);
-    expect(done.transcript.filter((item) => item.kind === 'notice').map((item) => (item as { text: string }).text)).toEqual([
+    expect(
+      done.transcript.filter((item) => item.kind === 'notice').map((item) => (item as { text: string }).text),
+    ).toEqual([
       'Rate limited (429). Retrying in 1 s (retry 1 of 4)…',
       'Provider overloaded (529). Retrying in 1 s (retry 2 of 4)…',
     ]);

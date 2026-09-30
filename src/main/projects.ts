@@ -49,7 +49,9 @@ export class ProjectStore {
     this.projects.unshift(project);
     this.currentPath = real;
     this.openProjects.set(real, project);
-    this.projects = this.list().filter((candidate, index) => index < MAX_RECENT || this.openProjects.has(candidate.path));
+    this.projects = this.list().filter(
+      (candidate, index) => index < MAX_RECENT || this.openProjects.has(candidate.path),
+    );
     this.persist();
     return { ...project };
   }

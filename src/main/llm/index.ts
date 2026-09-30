@@ -38,14 +38,17 @@ export class LlmService {
   // Custom endpoints use the conversation model rather than assuming they serve OpenAI's small model.
   smallModel(conversation: Conversation): CompletionClient | null {
     const preferred = conversation.provider;
-    const customEndpoint = preferred === 'openai' && conversation.serialize().api === 'chat'
-      ? this.settings.get().openaiBaseUrl.trim()
-      : '';
+    const customEndpoint =
+      preferred === 'openai' && conversation.serialize().api === 'chat' ? this.settings.get().openaiBaseUrl.trim() : '';
     const order = preferred === 'anthropic' ? (['anthropic', 'openai'] as const) : (['openai', 'anthropic'] as const);
     for (const provider of order) {
       if (provider === 'anthropic') {
         const key = this.settings.getSecret('anthropicApiKey');
-        if (key) return new AnthropicCompletionClient(createAnthropicClient(key, TEST_ANTHROPIC_BASE_URL, BACKGROUND_RETRIES), SMALL_MODELS.anthropic);
+        if (key)
+          return new AnthropicCompletionClient(
+            createAnthropicClient(key, TEST_ANTHROPIC_BASE_URL, BACKGROUND_RETRIES),
+            SMALL_MODELS.anthropic,
+          );
       } else {
         const key = this.settings.getSecret('openaiApiKey');
         if (key) {

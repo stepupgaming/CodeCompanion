@@ -1,5 +1,14 @@
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  utimesSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -110,12 +119,18 @@ describe('EditBackups', () => {
     await expect(backups.undo(chatId, 'nope', workspace)).rejects.toThrow(/no longer available/);
     await expect(backups.undo(otherChat, 't1', workspace)).rejects.toThrow(/no longer available/);
     await expect(backups.undo('../evil', 't1', workspace)).rejects.toThrow(/no longer available/);
-    expect(() => backups.record('../evil', 't1', { path: 'a', before: null, afterHash: 'x' })).toThrow(/Invalid chat id/);
+    expect(() => backups.record('../evil', 't1', { path: 'a', before: null, afterHash: 'x' })).toThrow(
+      /Invalid chat id/,
+    );
   });
 
   it('never leaves the project, even if a backup file was tampered with', async () => {
     writeFileSync(join(root, 'outside.txt'), 'outside');
-    backups.record(chatId, 't1', { path: '../outside.txt', before: Buffer.from('changed'), afterHash: sha256('outside') });
+    backups.record(chatId, 't1', {
+      path: '../outside.txt',
+      before: Buffer.from('changed'),
+      afterHash: sha256('outside'),
+    });
 
     await expect(backups.undo(chatId, 't1', workspace)).rejects.toThrow(/outside the project/);
     expect(readFileSync(join(root, 'outside.txt'), 'utf8')).toBe('outside');
@@ -125,7 +140,7 @@ describe('EditBackups', () => {
     edit('t1', 'src/a.ts', 'one\n', 'two\n');
     const folder = join(root, 'edit-backups', chatId);
     const [file] = readdirSync(folder);
-    writeFileSync(join(folder, file), '{ not json');
+    writeFileSync(join(folder, file!), '{ not json');
 
     await expect(backups.undo(chatId, 't1', workspace)).rejects.toThrow(/no longer available/);
     expect(readFileSync(project('src', 'a.ts'), 'utf8')).toBe('two\n');
@@ -146,7 +161,11 @@ describe('EditBackups', () => {
       join(root, 'edit-backups', chatId, `${createHash('sha256').update(toolId).digest('hex').slice(0, 40)}.json`);
     for (let index = 0; index < 55; index++) {
       writeFileSync(project('src', `f${index}.ts`), 'after');
-      backups.record(chatId, `t${index}`, { path: `src/f${index}.ts`, before: Buffer.from('before'), afterHash: sha256('after') });
+      backups.record(chatId, `t${index}`, {
+        path: `src/f${index}.ts`,
+        before: Buffer.from('before'),
+        afterHash: sha256('after'),
+      });
       // Distinct modification times in the past, so which backup is the oldest is well defined.
       const when = new Date(2026, 0, 1, 0, 0, index);
       utimesSync(fileOf(`t${index}`), when, when);

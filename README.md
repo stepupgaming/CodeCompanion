@@ -30,7 +30,7 @@ The application and installer are named Patch (`Patch.exe` and `Patch-Installer.
 - Keep several projects open in tabs, each with its own chat and unsent draft. Stop the current task before switching; one agent run is active at a time
 - Chats are saved automatically and can be searched by title, project or message text, and exported as Markdown (download button in the header); per-project custom instructions
 - `AGENTS.md` (or `CLAUDE.md`) in the project root is always added to the chat's instructions; the status bar shows "AGENTS.md loaded"
-- Image attachments (attach or paste) for models that accept images; the paperclip and paste are disabled for a Claude model id the app does not know to accept images (entered under *Other model id…*)
+- Image attachments (attach or paste) for models that accept images; the paperclip and paste are disabled for a Claude model id the app does not know to accept images (entered under _Other model id…_)
 - Token totals and estimated cost for the built-in Claude and GPT-6 models, including cache reads and writes, in the status bar, and each chat's estimated cost in the chat history; custom endpoints have no official-price estimate
 
 ## Getting started
@@ -46,7 +46,7 @@ Then:
 
 1. **File → Open Project…** and pick a folder.
 2. Open **Settings** (gear icon, `Ctrl+,`) and add your Anthropic API key (and optionally an OpenAI key for code search, and a Google API key + search engine id for web search).
-3. Describe a task, e.g. *"Add input validation to the signup form and a test for it."*
+3. Describe a task, e.g. _"Add input validation to the signup form and a test for it."_
 
 Recent projects are ordered by the latest open, including folders opened within the same millisecond.
 
@@ -56,13 +56,13 @@ For development in Amp orbs, the repository includes setup and resume scripts to
 
 ## Keyboard shortcuts
 
-| Shortcut | Action |
-|---|---|
-| `Enter` / `Shift+Enter` | Send / new line |
-| `Ctrl+O` | Open project |
-| `Ctrl+N` | New chat |
-| `Ctrl+.` | Stop the assistant |
-| `Ctrl+,` | Settings |
+| Shortcut                | Action             |
+| ----------------------- | ------------------ |
+| `Enter` / `Shift+Enter` | Send / new line    |
+| `Ctrl+O`                | Open project       |
+| `Ctrl+N`                | New chat           |
+| `Ctrl+.`                | Stop the assistant |
+| `Ctrl+,`                | Settings           |
 
 (`Cmd` instead of `Ctrl` on macOS.)
 

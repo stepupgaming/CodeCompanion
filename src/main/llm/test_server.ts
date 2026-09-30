@@ -119,7 +119,11 @@ export function anthropicStream(
   });
   events.push({
     event: 'message_delta',
-    data: { type: 'message_delta', delta: { stop_reason: stopReason, stop_sequence: null }, usage: { output_tokens: 7 } },
+    data: {
+      type: 'message_delta',
+      delta: { stop_reason: stopReason, stop_sequence: null },
+      usage: { output_tokens: 7 },
+    },
   });
   events.push({ event: 'message_stop', data: { type: 'message_stop' } });
   return events;

@@ -26,6 +26,7 @@ import type {
   TurnResult,
   UserInput,
 } from './types';
+import { INTERRUPTED_TOOL_RESULT } from './types';
 
 type MessageParam = OpenAI.Chat.ChatCompletionMessageParam;
 
@@ -42,7 +43,10 @@ export function createOpenAIClient(apiKey: string, baseURL?: string, maxRetries 
 function textOf(content: unknown): string {
   if (typeof content === 'string') return content;
   if (!Array.isArray(content)) return '';
-  return content.map((part) => (part?.type === 'text' ? part.text : part?.type === 'image_url' ? '[image]' : '')).filter(Boolean).join('\n');
+  return content
+    .map((part) => (part?.type === 'text' ? part.text : part?.type === 'image_url' ? '[image]' : ''))
+    .filter(Boolean)
+    .join('\n');
 }
 
 // A cut is safe anywhere except before a tool message, whose call would be left behind.
@@ -56,7 +60,9 @@ const compactionAdapter: CompactionAdapter<MessageParam> = {
         return [
           ...(textOf(message.content) ? [`Assistant: ${clip(textOf(message.content), MAX_TEXT_CHARS)}`] : []),
           ...(message.tool_calls ?? []).flatMap((call) =>
-            call.type === 'function' ? [`Assistant called ${call.function.name}: ${clip(call.function.arguments, MAX_TOOL_INPUT_CHARS)}`] : [],
+            call.type === 'function'
+              ? [`Assistant called ${call.function.name}: ${clip(call.function.arguments, MAX_TOOL_INPUT_CHARS)}`]
+              : [],
           ),
         ];
       case 'tool':
@@ -91,11 +97,17 @@ export class OpenAIConversation implements Conversation {
     const note = summaryNote(this.compaction.summary);
     const [first, ...rest] = this.messages.slice(this.compaction.keepFrom);
     if (first?.role !== 'user') return [{ role: 'user', content: note }, ...(first ? [first] : []), ...rest];
-    const content = typeof first.content === 'string' ? `${note}\n\n${first.content}` : [{ type: 'text' as const, text: note }, ...first.content];
+    const content =
+      typeof first.content === 'string'
+        ? `${note}\n\n${first.content}`
+        : [{ type: 'text' as const, text: note }, ...first.content];
     return [{ ...first, content }, ...rest];
   }
 
   addUserMessage(input: UserInput): void {
+    // A history saved mid-task can end with tool calls that never got results (an app crash); the API rejects
+    // requests until they are closed, so answer them synthetically before appending the new message.
+    this.closePendingToolCalls();
     if (!input.images?.length) {
       this.messages.push({ role: 'user', content: input.text });
       return;
@@ -115,13 +127,30 @@ export class OpenAIConversation implements Conversation {
   addToolResults(results: ToolResult[]): void {
     for (const result of results) {
       const prefix = result.isError ? 'Error: ' : '';
-      this.messages.push({ role: 'tool', tool_call_id: result.id, content: prefix + (result.content || '(no output)') });
+      this.messages.push({
+        role: 'tool',
+        tool_call_id: result.id,
+        content: prefix + (result.content || '(no output)'),
+      });
     }
     // Tool messages cannot carry images; screenshots follow as a user message.
     const images = results.flatMap((result) => result.images ?? []);
     if (images.length > 0) {
       this.addUserMessage({ text: 'Images returned by the tool calls above.', images });
     }
+  }
+
+  hasPendingToolCalls(): boolean {
+    const last = this.messages[this.messages.length - 1];
+    return last?.role === 'assistant' && 'tool_calls' in last && (last.tool_calls?.length ?? 0) > 0;
+  }
+
+  private closePendingToolCalls(): void {
+    if (!this.hasPendingToolCalls()) return;
+    const last = this.messages[this.messages.length - 1];
+    if (!last || last.role !== 'assistant' || !('tool_calls' in last)) return;
+    const ids = (last.tool_calls ?? []).flatMap((call) => (call.id ? [call.id] : []));
+    this.addToolResults(ids.map((id) => ({ id, content: INTERRUPTED_TOOL_RESULT, isError: true })));
   }
 
   async runTurn(request: TurnRequest): Promise<TurnResult> {
@@ -141,6 +170,7 @@ export class OpenAIConversation implements Conversation {
 
     const completion = await stream.finalChatCompletion();
     const choice = completion.choices[0];
+    if (!choice) throw new Error('The model response contained no choices.');
     const message = choice.message;
 
     const toolCalls: ToolCall[] = (message.tool_calls ?? [])
@@ -155,8 +185,7 @@ export class OpenAIConversation implements Conversation {
 
     const inputTokens = completion.usage?.prompt_tokens ?? 0;
     const details = completion.usage?.prompt_tokens_details as
-      | { cached_tokens?: number; cache_write_tokens?: number }
-      | undefined;
+      { cached_tokens?: number; cache_write_tokens?: number } | undefined;
     const cacheReadTokens = details?.cached_tokens ?? 0;
     const cacheWriteTokens = details?.cache_write_tokens ?? 0;
 
@@ -194,15 +223,20 @@ export class OpenAIConversation implements Conversation {
 export function trimHistory(messages: MessageParam[]): MessageParam[] {
   if (estimateTokens(messages) <= MAX_HISTORY_TOKENS) return messages;
   const [first, ...rest] = messages;
+  if (!first) return messages;
   let lastGroup = rest.length - 1;
-  while (lastGroup > 0 && rest[lastGroup].role === 'tool') lastGroup--;
+  while (lastGroup > 0 && rest[lastGroup]?.role === 'tool') lastGroup--;
   let start = 0;
   while (start < lastGroup && estimateTokens([first, ...rest.slice(start)]) > MAX_HISTORY_TOKENS) {
     start++;
-    while (start < lastGroup && rest[start].role === 'tool') start++;
+    while (start < lastGroup && rest[start]?.role === 'tool') start++;
   }
   if (start === 0) return messages;
-  return [first, { role: 'user', content: '(Earlier messages were removed to fit the context window.)' }, ...rest.slice(start)];
+  return [
+    first,
+    { role: 'user', content: '(Earlier messages were removed to fit the context window.)' },
+    ...rest.slice(start),
+  ];
 }
 
 function parseArguments(raw: string): unknown {
@@ -237,7 +271,11 @@ export class OpenAICompletionClient implements CompletionClient {
     private readonly model: string,
   ) {}
 
-  async complete<T extends z.ZodObject<z.ZodRawShape>>(prompt: string, schema: T, signal?: AbortSignal): Promise<z.infer<T>> {
+  async complete<T extends z.ZodObject<z.ZodRawShape>>(
+    prompt: string,
+    schema: T,
+    signal?: AbortSignal,
+  ): Promise<z.infer<T>> {
     const completion = await this.client.chat.completions.parse(
       {
         model: this.model,

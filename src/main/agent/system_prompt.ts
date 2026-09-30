@@ -56,7 +56,9 @@ function topLevelListing(workspace: Workspace): string {
       .sort((a, b) => Number(b.isDirectory()) - Number(a.isDirectory()) || a.name.localeCompare(b.name))
       .map((entry) => (entry.isDirectory() ? `${entry.name}/` : entry.name));
     const shown = entries.slice(0, 100);
-    return shown.join('\n') + (entries.length > shown.length ? `\n(${entries.length - shown.length} more)` : '') || '(empty)';
+    return (
+      shown.join('\n') + (entries.length > shown.length ? `\n(${entries.length - shown.length} more)` : '') || '(empty)'
+    );
   } catch {
     return '(could not list the project directory)';
   }

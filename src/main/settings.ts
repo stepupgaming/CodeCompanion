@@ -1,11 +1,5 @@
 import { EventEmitter } from 'node:events';
-import {
-  DEFAULT_SETTINGS,
-  SECRET_NAMES,
-  type SecretName,
-  type Settings,
-  type SettingsView,
-} from '@shared/settings';
+import { DEFAULT_SETTINGS, SECRET_NAMES, type SecretName, type Settings, type SettingsView } from '@shared/settings';
 import { readJson, writeJson } from './storage/json_file';
 
 // Encrypts secrets at rest. In the app this is Electron's safeStorage (OS keychain / DPAPI); tests inject
@@ -48,9 +42,8 @@ export class SettingsStore extends EventEmitter {
       boolean
     >;
     const stored = Object.values(this.secrets).filter(Boolean);
-    const secretsEncrypted = stored.length > 0
-      ? stored.every((value) => !value.startsWith('plain:'))
-      : this.cipher.isAvailable();
+    const secretsEncrypted =
+      stored.length > 0 ? stored.every((value) => !value.startsWith('plain:')) : this.cipher.isAvailable();
     return { ...this.settings, secrets, secretsEncrypted };
   }
 

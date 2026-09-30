@@ -3,11 +3,17 @@
 import type { TranscriptItem } from '../../src/shared/chat';
 
 export function code(turn: number): string {
-  return Array.from({ length: 25 }, (_, line) => `  const value${line} = compute(${turn}, ${line}); // step ${line}`).join('\n');
+  return Array.from(
+    { length: 25 },
+    (_, line) => `  const value${line} = compute(${turn}, ${line}); // step ${line}`,
+  ).join('\n');
 }
 
 function diff(turn: number): string {
-  const lines = Array.from({ length: 15 }, (_, line) => [`-  old line ${line} of file ${turn}`, `+  new line ${line} of file ${turn}`]).flat();
+  const lines = Array.from({ length: 15 }, (_, line) => [
+    `-  old line ${line} of file ${turn}`,
+    `+  new line ${line} of file ${turn}`,
+  ]).flat();
   return [`--- a/src/file${turn}.ts`, `+++ b/src/file${turn}.ts`, '@@ -1,15 +1,15 @@', ...lines].join('\n');
 }
 
@@ -21,7 +27,14 @@ export function transcript(turns: number): TranscriptItem[] {
       thinking: '',
       streaming: false,
     },
-    { kind: 'tool', id: `r${turn}`, name: 'read_file', status: 'done', summary: `Read src/file${turn}.ts (120 lines)`, path: `src/file${turn}.ts` },
+    {
+      kind: 'tool',
+      id: `r${turn}`,
+      name: 'read_file',
+      status: 'done',
+      summary: `Read src/file${turn}.ts (120 lines)`,
+      path: `src/file${turn}.ts`,
+    },
     {
       kind: 'tool',
       id: `e${turn}`,
@@ -38,7 +51,8 @@ export function transcript(turns: number): TranscriptItem[] {
 // A 20,000-character answer with prose and code blocks, streamed like a model would.
 export const ANSWER = Array.from(
   { length: 20 },
-  (_, part) => `### Part ${part}\n\nSome explanation of part ${part} with \`inline code\` and a list:\n\n- one\n- two\n\n\`\`\`ts\n${code(part).slice(0, 700)}\n\`\`\`\n\n`,
+  (_, part) =>
+    `### Part ${part}\n\nSome explanation of part ${part} with \`inline code\` and a list:\n\n- one\n- two\n\n\`\`\`ts\n${code(part).slice(0, 700)}\n\`\`\`\n\n`,
 )
   .join('')
   .slice(0, 20_000);

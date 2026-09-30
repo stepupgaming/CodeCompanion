@@ -48,7 +48,11 @@ describe('filterChats', () => {
     projectPath,
     updatedAt: '2026-09-30T00:00:00.000Z',
   });
-  const chats = [chat('1', 'Fix login bug', 'D:\\code\\shop'), chat('2', 'Add dark mode', 'D:\\code\\blog'), chat('3', 'Notes', null)];
+  const chats = [
+    chat('1', 'Fix login bug', 'D:\\code\\shop'),
+    chat('2', 'Add dark mode', 'D:\\code\\blog'),
+    chat('3', 'Notes', null),
+  ];
 
   it('returns everything for a blank query', () => {
     expect(filterChats(chats, '  ')).toBe(chats);
@@ -77,7 +81,12 @@ describe('applyChatEvent', () => {
   });
 
   it('drops empty assistant bubbles from tool-only turns', () => {
-    expect(run([{ type: 'assistant-start', id: 'a' }, { type: 'assistant-end', id: 'a', text: '' }])).toEqual([]);
+    expect(
+      run([
+        { type: 'assistant-start', id: 'a' },
+        { type: 'assistant-end', id: 'a', text: '' },
+      ]),
+    ).toEqual([]);
   });
 
   it('keeps streamed text when ended without final text', () => {
@@ -91,7 +100,13 @@ describe('applyChatEvent', () => {
 
   it('tracks a tool through approval, progress and completion', () => {
     const items = run([
-      { type: 'tool-start', id: 't', name: 'run_command', awaitingApproval: true, preview: { title: 'Run', command: 'ls' } },
+      {
+        type: 'tool-start',
+        id: 't',
+        name: 'run_command',
+        awaitingApproval: true,
+        preview: { title: 'Run', command: 'ls' },
+      },
       { type: 'tool-running', id: 't' },
       { type: 'tool-progress', id: 't', text: 'a\n' },
       { type: 'tool-progress', id: 't', text: 'b\n' },
@@ -101,7 +116,12 @@ describe('applyChatEvent', () => {
   });
 
   it('ignores metadata events', () => {
-    expect(run([{ type: 'busy', busy: true }, { type: 'title', title: 'x' }])).toEqual([]);
+    expect(
+      run([
+        { type: 'busy', busy: true },
+        { type: 'title', title: 'x' },
+      ]),
+    ).toEqual([]);
   });
 });
 
@@ -111,13 +131,23 @@ describe('size limits for tool cards', () => {
   const limit = TRANSCRIPT_LIMITS.outputChars;
 
   it('keeps short output as it is, with nothing marked as left out', () => {
-    const item = tool(run([start, { type: 'tool-progress', id: 't1', text: 'hello\n' }, { type: 'tool-end', id: 't1', status: 'done', summary: 's' }]));
+    const item = tool(
+      run([
+        start,
+        { type: 'tool-progress', id: 't1', text: 'hello\n' },
+        { type: 'tool-end', id: 't1', status: 'done', summary: 's' },
+      ]),
+    );
     expect(item.output).toBe('hello\n');
     expect(item.outputOmittedChars).toBeUndefined();
   });
 
   it('keeps the end of long streamed output and counts everything left out over all chunks', () => {
-    const chunks = Array.from({ length: 5 }, (_, index) => ({ type: 'tool-progress' as const, id: 't1', text: String(index).repeat(10_000) }));
+    const chunks = Array.from({ length: 5 }, (_, index) => ({
+      type: 'tool-progress' as const,
+      id: 't1',
+      text: String(index).repeat(10_000),
+    }));
     const item = tool(run([start, ...chunks]));
 
     expect(item.output).toHaveLength(limit);
@@ -127,11 +157,15 @@ describe('size limits for tool cards', () => {
 
   it('counts from the final output alone when the tool reports one', () => {
     const streamed = [start, { type: 'tool-progress' as const, id: 't1', text: 'x'.repeat(50_000) }];
-    const long = tool(run([...streamed, { type: 'tool-end', id: 't1', status: 'done', summary: 's', output: 'y'.repeat(limit + 7) }]));
+    const long = tool(
+      run([...streamed, { type: 'tool-end', id: 't1', status: 'done', summary: 's', output: 'y'.repeat(limit + 7) }]),
+    );
     expect(long.output).toBe('y'.repeat(limit));
     expect(long.outputOmittedChars).toBe(7);
 
-    const short = tool(run([...streamed, { type: 'tool-end', id: 't1', status: 'done', summary: 's', output: 'done' }]));
+    const short = tool(
+      run([...streamed, { type: 'tool-end', id: 't1', status: 'done', summary: 's', output: 'done' }]),
+    );
     expect(short).toMatchObject({ output: 'done' });
     expect(short.outputOmittedChars).toBeUndefined();
 
@@ -142,7 +176,17 @@ describe('size limits for tool cards', () => {
 
   it('keeps the first lines of a long diff, whole lines only, and says how many are left out', () => {
     const diff = Array.from({ length: 5_000 }, (_, index) => `+line ${index}`).join('\n');
-    const item = tool(run([{ type: 'tool-start', id: 't1', name: 'write_file', awaitingApproval: true, preview: { title: 'Create a', diff } }]));
+    const item = tool(
+      run([
+        {
+          type: 'tool-start',
+          id: 't1',
+          name: 'write_file',
+          awaitingApproval: true,
+          preview: { title: 'Create a', diff },
+        },
+      ]),
+    );
 
     expect(item.preview!.diff!.split('\n')).toHaveLength(TRANSCRIPT_LIMITS.diffLines);
     expect(item.preview!.diff!.split('\n').at(-1)).toBe(`+line ${TRANSCRIPT_LIMITS.diffLines - 1}`);
@@ -171,7 +215,9 @@ describe('size limits for tool cards', () => {
   it('warns before approval that the hidden part is applied too', () => {
     expect(diffNotice(3000, false)).toBe('Diff too long to show in full: 3,000 more lines are not shown.');
     expect(diffNotice(3000, true)).toContain('Approving applies the whole change, including the part not shown');
-    expect(outputNotice(12_345)).toBe('Output too long to show in full: the first 12,345 characters are not shown, only the last 20,000.');
+    expect(outputNotice(12_345)).toBe(
+      'Output too long to show in full: the first 12,345 characters are not shown, only the last 20,000.',
+    );
   });
 });
 
@@ -179,17 +225,28 @@ describe('undoing an edit', () => {
   const start: ChatEvent = { type: 'tool-start', id: 't1', name: 'edit_file', awaitingApproval: false };
 
   it('marks a finished edit that has a backup as undoable, and as undone after the undo', () => {
-    const done = run([start, { type: 'tool-end', id: 't1', status: 'done', summary: 'Edited a.ts', path: 'a.ts', undoable: true }]);
+    const done = run([
+      start,
+      { type: 'tool-end', id: 't1', status: 'done', summary: 'Edited a.ts', path: 'a.ts', undoable: true },
+    ]);
     expect(done[0]).toMatchObject({ kind: 'tool', status: 'done', undo: 'available' });
 
-    const undone = run([start, { type: 'tool-end', id: 't1', status: 'done', summary: 'Edited a.ts', undoable: true }, { type: 'tool-undone', id: 't1' }]);
+    const undone = run([
+      start,
+      { type: 'tool-end', id: 't1', status: 'done', summary: 'Edited a.ts', undoable: true },
+      { type: 'tool-undone', id: 't1' },
+    ]);
     expect(undone[0]).toMatchObject({ undo: 'undone' });
   });
 
   it('offers no undo without a backup, for a failed edit, or for a declined one', () => {
     expect(run([start, { type: 'tool-end', id: 't1', status: 'done', summary: 's' }])[0]).not.toHaveProperty('undo');
-    expect(run([start, { type: 'tool-end', id: 't1', status: 'error', summary: 's', undoable: true }])[0]).not.toHaveProperty('undo');
-    expect(run([start, { type: 'tool-end', id: 't1', status: 'declined', summary: 's', undoable: true }])[0]).not.toHaveProperty('undo');
+    expect(
+      run([start, { type: 'tool-end', id: 't1', status: 'error', summary: 's', undoable: true }])[0],
+    ).not.toHaveProperty('undo');
+    expect(
+      run([start, { type: 'tool-end', id: 't1', status: 'declined', summary: 's', undoable: true }])[0],
+    ).not.toHaveProperty('undo');
   });
 
   it('only marks an edit that could be undone, and leaves other items alone', () => {

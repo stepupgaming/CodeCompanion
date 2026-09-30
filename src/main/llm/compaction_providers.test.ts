@@ -41,7 +41,10 @@ describe('Anthropic conversation compaction', () => {
         { type: 'tool_use', id: 't1', name: 'read_file', input: { path: 'a.ts' } },
       ],
     },
-    { role: 'user', content: [{ type: 'tool_result', tool_use_id: 't1', content: [{ type: 'text', text: big('FILE-CONTENT') }] }] },
+    {
+      role: 'user',
+      content: [{ type: 'tool_result', tool_use_id: 't1', content: [{ type: 'text', text: big('FILE-CONTENT') }] }],
+    },
     { role: 'assistant', content: [{ type: 'text', text: big('third answer') }] },
     { role: 'user', content: [{ type: 'text', text: big('THIRD-PROMPT') }] },
     { role: 'user', content: [{ type: 'text', text: big('LATEST') }] },
@@ -84,7 +87,7 @@ describe('Anthropic conversation compaction', () => {
     ok();
     await conversation.runTurn(request());
 
-    const sent = server.requests[0].body.messages;
+    const sent = server.requests[0]!.body.messages;
     // The first kept message is an assistant one, so the summary is a message of its own in front of it.
     expect(sent).toHaveLength(original.length - 3 + 1);
     expect(sent[0].role).toBe('user');
@@ -106,11 +109,11 @@ describe('Anthropic conversation compaction', () => {
     ok();
     await conversation.runTurn(request());
 
-    const sent = server.requests[0].body.messages;
+    const sent = server.requests[0]!.body.messages;
     expect(sent).toHaveLength(2);
     expect(sent[0].content).toHaveLength(2);
     expect(sent[0].content[0].text).toContain('THE SUMMARY');
-    expect(sent[0].content[1]).toEqual(original[6].content[0]);
+    expect(sent[0].content[1]).toEqual(original[6]!.content[0]);
     // The stored message was copied, not edited.
     expect(conversation.serialize().messages[6]).toEqual(original[6]);
   });
@@ -126,7 +129,7 @@ describe('Anthropic conversation compaction', () => {
     const reopened = create(saved.messages, saved.compaction);
     await reopened.runTurn(request());
     // The first conversation added its reply after the request, so compare what was sent.
-    expect(server.requests[1].body.messages).toEqual(server.requests[0].body.messages);
+    expect(server.requests[1]!.body.messages).toEqual(server.requests[0]!.body.messages);
   });
 
   it('compacts again later from the previous summary, moving the cut forward', () => {
@@ -165,14 +168,19 @@ describe('OpenAI conversation compaction', () => {
   const history = () => [
     { role: 'user', content: big('TASK') },
     { role: 'assistant', content: big('first answer') },
-    { role: 'assistant', content: big('reading'), tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'read_file', arguments: '{"path":"a.ts"}' } }] },
+    {
+      role: 'assistant',
+      content: big('reading'),
+      tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'read_file', arguments: '{"path":"a.ts"}' } }],
+    },
     { role: 'tool', tool_call_id: 'call_1', content: big('FILE-CONTENT', 30_000) },
     { role: 'assistant', content: big('third answer') },
     { role: 'user', content: big('LATEST') },
   ];
   const create = (messages: unknown[], compaction: { summary: string; keepFrom: number } | null = null) =>
     new OpenAIConversation(createOpenAIClient('sk-test', baseURL), 'gpt-test', messages as never, compaction);
-  const ok = () => server.queueSse([chunk({ role: 'assistant', content: 'ok' }), chunk({}, 'stop'), { data: '[DONE]' }]);
+  const ok = () =>
+    server.queueSse([chunk({ role: 'assistant', content: 'ok' }), chunk({}, 'stop'), { data: '[DONE]' }]);
 
   it('never cuts before a tool message', () => {
     const plan = create(history()).planCompaction()!;
@@ -194,7 +202,7 @@ describe('OpenAI conversation compaction', () => {
     ok();
     await conversation.runTurn(request());
 
-    const sent = server.requests[0].body.messages;
+    const sent = server.requests[0]!.body.messages;
     // system, the summary, then the four kept messages.
     expect(sent).toHaveLength(1 + 1 + 4);
     expect(sent[1].role).toBe('user');
@@ -214,7 +222,7 @@ describe('OpenAI conversation compaction', () => {
     ok();
     await conversation.runTurn(request());
 
-    const sent = server.requests[0].body.messages;
+    const sent = server.requests[0]!.body.messages;
     expect(sent).toHaveLength(2);
     expect(sent[1].content).toMatch(/^Summary of the earlier part[\s\S]*THE SUMMARY[\s\S]*LATEST/);
     expect(conversation.serialize().messages[5]).toEqual(original[5]);
@@ -232,7 +240,7 @@ describe('OpenAI conversation compaction', () => {
     ok();
     await conversation.runTurn(request());
 
-    expect(JSON.stringify(server.requests[0].body.messages).length / 4).toBeLessThan(110_000);
+    expect(JSON.stringify(server.requests[0]!.body.messages).length / 4).toBeLessThan(110_000);
     expect(conversation.serialize().messages.slice(0, huge.length)).toEqual(huge);
   });
 });
@@ -245,13 +253,26 @@ describe('OpenAI Responses conversation compaction', () => {
     { type: 'message', id: 'msg_0', role: 'assistant', status: 'completed', content: text(big('first answer')) },
     { role: 'user', content: [{ type: 'input_text', text: big('SECOND-PROMPT') }] },
     { type: 'reasoning', id: 'rs_1', summary: [], encrypted_content: 'E1' },
-    { type: 'function_call', id: 'fc_1', call_id: 'c1', name: 'read_file', arguments: '{"path":"a.ts"}', status: 'completed' },
+    {
+      type: 'function_call',
+      id: 'fc_1',
+      call_id: 'c1',
+      name: 'read_file',
+      arguments: '{"path":"a.ts"}',
+      status: 'completed',
+    },
     { type: 'function_call_output', call_id: 'c1', output: big('FILE-CONTENT', 30_000) },
     { type: 'message', id: 'msg_1', role: 'assistant', status: 'completed', content: text(big('third answer')) },
     { role: 'user', content: [{ type: 'input_text', text: big('LATEST') }] },
   ];
   const create = (items: unknown[], compaction: { summary: string; keepFrom: number } | null = null) =>
-    new OpenAIResponsesConversation(createOpenAIClient('sk-test', baseURL), 'gpt-6-sol', 'high', items as never, compaction);
+    new OpenAIResponsesConversation(
+      createOpenAIClient('sk-test', baseURL),
+      'gpt-6-sol',
+      'high',
+      items as never,
+      compaction,
+    );
 
   it('cuts before the reasoning item of a tool call, keeping the call, its reasoning and its output together', () => {
     const plan = create(history()).planCompaction()!;
@@ -290,12 +311,18 @@ describe('OpenAI Responses conversation compaction', () => {
     conversation.applyCompaction('THE SUMMARY', conversation.planCompaction()!.keepFrom);
     // A stream that is only created and completed is enough to read back the request that was sent.
     server.queueSse([
-      { event: 'response.created', data: { type: 'response.created', sequence_number: 0, response: response('in_progress') } },
-      { event: 'response.completed', data: { type: 'response.completed', sequence_number: 1, response: response('completed') } },
+      {
+        event: 'response.created',
+        data: { type: 'response.created', sequence_number: 0, response: response('in_progress') },
+      },
+      {
+        event: 'response.completed',
+        data: { type: 'response.completed', sequence_number: 1, response: response('completed') },
+      },
     ]);
     await conversation.runTurn(request());
 
-    const input = server.requests[0].body.input;
+    const input = server.requests[0]!.body.input;
     expect(input).toHaveLength(1 + (original.length - 4));
     expect(input[0].role).toBe('user');
     expect(input[0].content[0].text).toContain('THE SUMMARY');

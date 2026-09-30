@@ -11,14 +11,25 @@ export interface ScriptedResponse {
 const MODEL = 'gpt-6-sol';
 
 function response(status: string, output: unknown[], usage: unknown = null) {
-  return { id: 'resp_e2e', object: 'response', created_at: 0, model: MODEL, status, output, usage, error: null, incomplete_details: null };
+  return {
+    id: 'resp_e2e',
+    object: 'response',
+    created_at: 0,
+    model: MODEL,
+    status,
+    output,
+    usage,
+    error: null,
+    incomplete_details: null,
+  };
 }
 
 // The event sequence the Responses API streams for the scripted output items.
 function responseEvents(turn: ScriptedResponse): Array<{ event: string; data: object }> {
   const events: Array<{ event: string; data: object }> = [];
   let sequence = 0;
-  const add = (type: string, data: object) => events.push({ event: type, data: { type, sequence_number: sequence++, ...data } });
+  const add = (type: string, data: object) =>
+    events.push({ event: type, data: { type, sequence_number: sequence++, ...data } });
   const output: unknown[] = [];
   add('response.created', { response: response('in_progress', []) });
 
@@ -32,10 +43,30 @@ function responseEvents(turn: ScriptedResponse): Array<{ event: string; data: ob
     const index = output.length;
     output.push(item);
     add('response.output_item.added', { output_index: index, item: { ...item, summary: [] } });
-    add('response.reasoning_summary_part.added', { item_id: item.id, output_index: index, summary_index: 0, part: { type: 'summary_text', text: '' } });
-    add('response.reasoning_summary_text.delta', { item_id: item.id, output_index: index, summary_index: 0, delta: turn.reasoning.summary });
-    add('response.reasoning_summary_text.done', { item_id: item.id, output_index: index, summary_index: 0, text: turn.reasoning.summary });
-    add('response.reasoning_summary_part.done', { item_id: item.id, output_index: index, summary_index: 0, part: item.summary[0] });
+    add('response.reasoning_summary_part.added', {
+      item_id: item.id,
+      output_index: index,
+      summary_index: 0,
+      part: { type: 'summary_text', text: '' },
+    });
+    add('response.reasoning_summary_text.delta', {
+      item_id: item.id,
+      output_index: index,
+      summary_index: 0,
+      delta: turn.reasoning.summary,
+    });
+    add('response.reasoning_summary_text.done', {
+      item_id: item.id,
+      output_index: index,
+      summary_index: 0,
+      text: turn.reasoning.summary,
+    });
+    add('response.reasoning_summary_part.done', {
+      item_id: item.id,
+      output_index: index,
+      summary_index: 0,
+      part: item.summary[0],
+    });
     add('response.output_item.done', { output_index: index, item });
   }
 
@@ -50,21 +81,55 @@ function responseEvents(turn: ScriptedResponse): Array<{ event: string; data: ob
     const index = output.length;
     output.push(item);
     add('response.output_item.added', { output_index: index, item: { ...item, status: 'in_progress', content: [] } });
-    add('response.content_part.added', { item_id: item.id, output_index: index, content_index: 0, part: { type: 'output_text', text: '', annotations: [] } });
-    add('response.output_text.delta', { item_id: item.id, output_index: index, content_index: 0, delta: turn.text, logprobs: [] });
-    add('response.output_text.done', { item_id: item.id, output_index: index, content_index: 0, text: turn.text, logprobs: [] });
-    add('response.content_part.done', { item_id: item.id, output_index: index, content_index: 0, part: item.content[0] });
+    add('response.content_part.added', {
+      item_id: item.id,
+      output_index: index,
+      content_index: 0,
+      part: { type: 'output_text', text: '', annotations: [] },
+    });
+    add('response.output_text.delta', {
+      item_id: item.id,
+      output_index: index,
+      content_index: 0,
+      delta: turn.text,
+      logprobs: [],
+    });
+    add('response.output_text.done', {
+      item_id: item.id,
+      output_index: index,
+      content_index: 0,
+      text: turn.text,
+      logprobs: [],
+    });
+    add('response.content_part.done', {
+      item_id: item.id,
+      output_index: index,
+      content_index: 0,
+      part: item.content[0],
+    });
     add('response.output_item.done', { output_index: index, item });
   }
 
   if (turn.call) {
     const args = JSON.stringify(turn.call.input);
-    const item = { id: 'fc_e2e', type: 'function_call', call_id: turn.call.id, name: turn.call.name, arguments: args, status: 'completed' };
+    const item = {
+      id: 'fc_e2e',
+      type: 'function_call',
+      call_id: turn.call.id,
+      name: turn.call.name,
+      arguments: args,
+      status: 'completed',
+    };
     const index = output.length;
     output.push(item);
     add('response.output_item.added', { output_index: index, item: { ...item, arguments: '', status: 'in_progress' } });
     add('response.function_call_arguments.delta', { item_id: item.id, output_index: index, delta: args });
-    add('response.function_call_arguments.done', { item_id: item.id, output_index: index, arguments: args, name: item.name });
+    add('response.function_call_arguments.done', {
+      item_id: item.id,
+      output_index: index,
+      arguments: args,
+      name: item.name,
+    });
     add('response.output_item.done', { output_index: index, item });
   }
 
@@ -101,7 +166,13 @@ export class MockOpenAI {
               object: 'chat.completion',
               created: 0,
               model: body.model,
-              choices: [{ index: 0, finish_reason: 'stop', message: { role: 'assistant', content: '{"title":"Read the notes"}', refusal: null } }],
+              choices: [
+                {
+                  index: 0,
+                  finish_reason: 'stop',
+                  message: { role: 'assistant', content: '{"title":"Read the notes"}', refusal: null },
+                },
+              ],
               usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
             }),
           );
@@ -109,12 +180,21 @@ export class MockOpenAI {
         }
         this.agentRequests.push({ path: req.url, body });
         // Like the real API: fields the SDK adds to responses are not valid input and are rejected.
-        const invalid = (body.input ?? []).findIndex((item: any) =>
-          'parsed_arguments' in item || (Array.isArray(item.content) && item.content.some((part: any) => part && 'parsed' in part)),
+        const invalid = (body.input ?? []).findIndex(
+          (item: any) =>
+            'parsed_arguments' in item ||
+            (Array.isArray(item.content) && item.content.some((part: any) => part && 'parsed' in part)),
         );
         if (invalid >= 0) {
           res.writeHead(400, { 'content-type': 'application/json' });
-          res.end(JSON.stringify({ error: { message: `Unknown parameter: 'input[${invalid}].parsed_arguments'.`, type: 'invalid_request_error' } }));
+          res.end(
+            JSON.stringify({
+              error: {
+                message: `Unknown parameter: 'input[${invalid}].parsed_arguments'.`,
+                type: 'invalid_request_error',
+              },
+            }),
+          );
           return;
         }
         const turn = this.turns.shift();
@@ -124,7 +204,8 @@ export class MockOpenAI {
           return;
         }
         res.writeHead(200, { 'content-type': 'text/event-stream' });
-        for (const { event, data } of responseEvents(turn)) res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+        for (const { event, data } of responseEvents(turn))
+          res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
         res.end();
       });
     });

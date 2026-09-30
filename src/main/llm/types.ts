@@ -92,7 +92,15 @@ export interface Conversation {
   planCompaction(): CompactionPlan | null;
   // From now on the summary is sent in place of the messages before `keepFrom`. Nothing stored is changed.
   applyCompaction(summary: string, keepFrom: number): void;
+  // True when the history ends with tool calls that never got their results — a task the app interrupted.
+  // addUserMessage() repairs such a history with synthetic results, so the next request is valid again.
+  hasPendingToolCalls(): boolean;
 }
+
+// Returned to the model for tool calls that were interrupted by an app crash or restart. Mirrors the wording the
+// agent uses for user-stopped calls: the model must not assume the action ran.
+export const INTERRUPTED_TOOL_RESULT =
+  'Not run: the app was interrupted before this action could be approved and executed. Do not assume it ran; inspect the current state before attempting it again.';
 
 // Structured one-shot calls to the small model (titles, re-ranking).
 export interface CompletionClient {

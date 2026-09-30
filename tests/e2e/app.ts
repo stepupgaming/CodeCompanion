@@ -31,8 +31,11 @@ export function killTree(pid: number | undefined): void {
 
 // Launches the built app (run `npm run build` first) with a throwaway profile. Pass `userData` to start again on the
 // profile of an earlier launch, as after a restart; that folder is then left for the caller to remove.
-export async function launchApp(env: Record<string, string> = {}, options: { userData?: string } = {}): Promise<RunningApp> {
-  const userData = options.userData ?? mkdtempSync(join(tmpdir(), 'patch-e2e-'));
+export async function launchApp(
+  env: Record<string, string> = {},
+  options: { userData?: string } = {},
+): Promise<RunningApp> {
+  const userData = options.userData ?? mkdtempSync(join(tmpdir(), 'codecompanion-e2e-'));
   const root = resolve(__dirname, '../..');
   const app = await electron.launch({
     args: [root],

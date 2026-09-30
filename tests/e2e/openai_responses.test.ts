@@ -53,7 +53,11 @@ describe('OpenAI Responses API end to end (mock OpenAI API)', () => {
     const done = await waitForIdle();
 
     expect(done.transcript.map((item) => item.kind)).toEqual(['user', 'assistant', 'tool', 'assistant']);
-    expect(done.transcript[2]).toMatchObject({ name: 'read_file', status: 'done', summary: 'Read notes.txt (2 lines)' });
+    expect(done.transcript[2]).toMatchObject({
+      name: 'read_file',
+      status: 'done',
+      summary: 'Read notes.txt (2 lines)',
+    });
     expect(done.transcript[3]).toMatchObject({ text: 'The secret word is pineapple.' });
     expect(done.usage.cacheReadTokens).toBeGreaterThan(0);
 

@@ -44,14 +44,19 @@ describe('stop and resume of a long agent run (mock Claude API)', () => {
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
     const state = chat.transcript.map((item) => `${item.kind}${'status' in item ? ` (${item.status})` : ''}`);
-    throw new Error(`Timed out. busy=${chat.busy} resumable=${chat.resumable} transcript=${JSON.stringify(state)} ${running.mainErrors.join(' ')}`);
+    throw new Error(
+      `Timed out. busy=${chat.busy} resumable=${chat.resumable} transcript=${JSON.stringify(state)} ${running.mainErrors.join(' ')}`,
+    );
   }
 
   const tool = (id: string, name: string, input: unknown) => ({
     blocks: [{ type: 'tool_use' as const, id, name, input }],
     stopReason: 'tool_use' as const,
   });
-  const text = (value: string) => ({ blocks: [{ type: 'text' as const, text: value }], stopReason: 'end_turn' as const });
+  const text = (value: string) => ({
+    blocks: [{ type: 'text' as const, text: value }],
+    stopReason: 'end_turn' as const,
+  });
   const node = (script: string) => `node -e "${script}"`;
   const toolResults = (request: any) =>
     request.messages.flatMap((message: any) =>
@@ -64,7 +69,9 @@ describe('stop and resume of a long agent run (mock Claude API)', () => {
       tool('step-read', 'read_file', { path: 'step1.txt' }),
       // Marks that it started, then would write late.txt after 3 seconds, unless it is killed first.
       tool('step-long', 'run_command', {
-        command: node("require('fs').writeFileSync('started.txt','x');setTimeout(()=>require('fs').writeFileSync('late.txt','too late'),3000)"),
+        command: node(
+          "require('fs').writeFileSync('started.txt','x');setTimeout(()=>require('fs').writeFileSync('late.txt','too late'),3000)",
+        ),
       }),
       text('Finished after resuming.'),
     );
@@ -72,7 +79,7 @@ describe('stop and resume of a long agent run (mock Claude API)', () => {
 
     await waitFor((chat) => {
       const cards = chat.transcript.filter((item) => item.kind === 'tool');
-      return cards.length === 3 && cards[2].status === 'running';
+      return cards.length === 3 && cards[2]!.status === 'running';
     });
     // Stop once the command is really running: stopping a shell that is still starting is a different, racy case.
     await expect.poll(() => existsSync(join(project, 'started.txt')), { timeout: 20_000 }).toBe(true);
@@ -134,7 +141,9 @@ describe('stop and resume of a long agent run (mock Claude API)', () => {
     expect(stopped.transcript[1]).toMatchObject({ text: 'Here is the first half of the ans', streaming: false });
     expect(stopped.transcript[2]).toMatchObject({ text: 'Stopped.' });
     // The message went from streaming to finished in the same element.
-    await expect.poll(() => bubble!.evaluate((node) => node.isConnected && !node.classList.contains('streaming'))).toBe(true);
+    await expect
+      .poll(() => bubble!.evaluate((node) => node.isConnected && !node.classList.contains('streaming')))
+      .toBe(true);
     // The app gave up on the request: the mock saw the connection close.
     await expect.poll(() => claude.hanging).toBe(false);
 

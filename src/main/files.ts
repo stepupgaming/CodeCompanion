@@ -33,7 +33,11 @@ export async function pickImages(window: BrowserWindow | null): Promise<ImageAtt
 }
 
 // Asks where to save a text file and writes it. Returns the chosen path, or null when the user cancels.
-export async function saveTextFile(window: BrowserWindow | null, defaultName: string, text: string): Promise<string | null> {
+export async function saveTextFile(
+  window: BrowserWindow | null,
+  defaultName: string,
+  text: string,
+): Promise<string | null> {
   const options = { defaultPath: defaultName, filters: [{ name: 'Markdown', extensions: ['md'] }] };
   const result = window ? await dialog.showSaveDialog(window, options) : await dialog.showSaveDialog(options);
   if (result.canceled || !result.filePath) return null;

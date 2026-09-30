@@ -48,14 +48,18 @@ describe('switching between open projects (mock Claude API)', () => {
       if (check(chat)) return chat;
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
-    throw new Error(`Timed out. project=${chat.projectPath} busy=${chat.busy} items=${chat.transcript.length} ${running.mainErrors.join(' ')}`);
+    throw new Error(
+      `Timed out. project=${chat.projectPath} busy=${chat.busy} items=${chat.transcript.length} ${running.mainErrors.join(' ')}`,
+    );
   }
 
   async function ask(text: string, answer: string): Promise<ChatSnapshot> {
     claude.script({ blocks: [{ type: 'text', text: answer }], stopReason: 'end_turn' });
     await message().fill(text);
     await message().press('Enter');
-    return waitFor((chat) => !chat.busy && chat.transcript.some((item) => item.kind === 'assistant' && item.text === answer));
+    return waitFor(
+      (chat) => !chat.busy && chat.transcript.some((item) => item.kind === 'assistant' && item.text === answer),
+    );
   }
 
   // Pastes a small PNG into the message box, the way the clipboard would.
@@ -76,7 +80,10 @@ describe('switching between open projects (mock Claude API)', () => {
 
     await running.page.evaluate((path) => window.api.invoke('project:open', path), beta);
     await tab('Beta').waitFor();
-    await running.page.evaluate((path) => window.api.invoke('project:set-instructions', path, 'BETA-PROJECT-INSTRUCTIONS'), beta);
+    await running.page.evaluate(
+      (path) => window.api.invoke('project:set-instructions', path, 'BETA-PROJECT-INSTRUCTIONS'),
+      beta,
+    );
     betaChatId = (await ask('Hello Beta', 'Beta answered.')).id;
     const betaSystem = claude.agentRequests.at(-1).system[0].text;
     expect(betaSystem).toContain('BETA-PROJECT-INSTRUCTIONS');

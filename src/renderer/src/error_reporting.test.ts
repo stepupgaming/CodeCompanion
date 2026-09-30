@@ -6,7 +6,8 @@ function setup(limit?: number) {
   const target = new EventTarget();
   const reports: RendererErrorReport[] = [];
   installErrorReporting(target, (report) => reports.push(report), limit);
-  const fire = (type: string, props: Record<string, unknown>) => target.dispatchEvent(Object.assign(new Event(type), props));
+  const fire = (type: string, props: Record<string, unknown>) =>
+    target.dispatchEvent(Object.assign(new Event(type), props));
   return { reports, fire };
 }
 

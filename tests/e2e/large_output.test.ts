@@ -40,7 +40,10 @@ describe('very large tool results in the chat (mock Claude API)', () => {
   it('shows the start of a huge diff with a warning before approval, and approving still writes all of it', async () => {
     const content = Array.from({ length: 6_000 }, (_, index) => `line ${index}`).join('\n') + '\n';
     claude.script(
-      { blocks: [{ type: 'tool_use', id: 'big-write', name: 'write_file', input: { path: 'big.txt', content } }], stopReason: 'tool_use' },
+      {
+        blocks: [{ type: 'tool_use', id: 'big-write', name: 'write_file', input: { path: 'big.txt', content } }],
+        stopReason: 'tool_use',
+      },
       { blocks: [{ type: 'text', text: 'Written.' }], stopReason: 'end_turn' },
     );
     await running.page.evaluate(() => window.api.invoke('chat:send', { text: 'Write a big file' }));

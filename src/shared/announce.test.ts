@@ -2,8 +2,18 @@ import { describe, expect, it } from 'vitest';
 import { markAnnounced, newAnnouncements } from './announce';
 import type { TranscriptItem } from './chat';
 
-const assistant = (id: string, text: string, streaming = false): TranscriptItem => ({ kind: 'assistant', id, text, thinking: '', streaming });
-const tool = (id: string, status: 'awaiting-approval' | 'running' | 'done' | 'error' | 'declined', summary?: string): TranscriptItem => ({
+const assistant = (id: string, text: string, streaming = false): TranscriptItem => ({
+  kind: 'assistant',
+  id,
+  text,
+  thinking: '',
+  streaming,
+});
+const tool = (
+  id: string,
+  status: 'awaiting-approval' | 'running' | 'done' | 'error' | 'declined',
+  summary?: string,
+): TranscriptItem => ({
   kind: 'tool',
   id,
   name: 'run_command',
@@ -30,7 +40,9 @@ describe('newAnnouncements', () => {
     expect(newAnnouncements([tool('t', 'awaiting-approval')], announced)).toEqual(['Approval needed: Run command']);
     expect(newAnnouncements([tool('t', 'running')], announced)).toEqual([]);
     expect(newAnnouncements([tool('t', 'done', 'Ran `npm test`')], announced)).toEqual([]);
-    expect(newAnnouncements([tool('u', 'error', 'Ran `npm test` (exit 1)')], announced)).toEqual(['Failed: Ran `npm test` (exit 1)']);
+    expect(newAnnouncements([tool('u', 'error', 'Ran `npm test` (exit 1)')], announced)).toEqual([
+      'Failed: Ran `npm test` (exit 1)',
+    ]);
   });
 
   it('announces errors and notices, and skips the user’s own messages and empty answers', () => {

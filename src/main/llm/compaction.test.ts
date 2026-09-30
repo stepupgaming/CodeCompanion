@@ -38,10 +38,10 @@ describe('planCompaction', () => {
 
   it('never cuts where the history cannot start, and cuts earlier instead', () => {
     const messages = ten();
-    messages[6].safe = false;
+    messages[6]!.safe = false;
     expect(planCompaction(messages, null, adapter)!.keepFrom).toBe(5);
 
-    for (const index of [6, 5, 4, 3]) messages[index].safe = false;
+    for (const index of [6, 5, 4, 3]) messages[index]!.safe = false;
     expect(planCompaction(messages, null, adapter)!.keepFrom).toBe(2);
 
     for (const item of messages) item.safe = false;

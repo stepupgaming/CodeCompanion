@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { acceptsImages, claudeCapabilities, estimateCost, formatCost, imagesNotSupportedMessage, MODEL_OPTIONS } from './models';
+import {
+  acceptsImages,
+  claudeCapabilities,
+  estimateCost,
+  formatCost,
+  imagesNotSupportedMessage,
+  MODEL_OPTIONS,
+} from './models';
 
 describe('image input', () => {
   it('is on for every built-in model', () => {
@@ -51,13 +58,22 @@ describe('estimateCost', () => {
   });
 
   it('returns null for unknown models and official ids on custom compatible providers', () => {
-    expect(estimateCost('gpt-6-astra', { inputTokens: 1000, outputTokens: 1000, cacheReadTokens: 0 }, false)).toBeNull();
+    expect(
+      estimateCost('gpt-6-astra', { inputTokens: 1000, outputTokens: 1000, cacheReadTokens: 0 }, false),
+    ).toBeNull();
     expect(estimateCost('claude-custom', { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0 })).toBeNull();
   });
 
   it('keeps long-context tokens at list price for models without a long-context price', () => {
     const long = { inputTokens: 500_000, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 };
-    expect(estimateCost('claude-haiku-4-5', { inputTokens: 1_000_000, outputTokens: 0, cacheReadTokens: 0, longContext: long })).toBe(1);
+    expect(
+      estimateCost('claude-haiku-4-5', {
+        inputTokens: 1_000_000,
+        outputTokens: 0,
+        cacheReadTokens: 0,
+        longContext: long,
+      }),
+    ).toBe(1);
   });
 
   it('accepts legacy usage without cache-write or long-context fields', () => {

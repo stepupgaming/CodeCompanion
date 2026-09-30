@@ -35,7 +35,11 @@ export interface ToolPreview {
 }
 
 export interface CodeSearch {
-  search(query: string, limit: number, signal: AbortSignal): Promise<Array<{ path: string; startLine: number; endLine: number; text: string }>>;
+  search(
+    query: string,
+    limit: number,
+    signal: AbortSignal,
+  ): Promise<Array<{ path: string; startLine: number; endLine: number; text: string }>>;
 }
 
 export interface WebSearchConfig {

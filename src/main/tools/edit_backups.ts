@@ -27,7 +27,11 @@ export class EditBackups {
   record(chatId: string, toolId: string, edit: EditUndo): void {
     const folder = this.chatFolder(chatId);
     mkdirSync(folder, { recursive: true });
-    const stored: StoredBackup = { path: edit.path, before: edit.before ? edit.before.toString('base64') : null, afterHash: edit.afterHash };
+    const stored: StoredBackup = {
+      path: edit.path,
+      before: edit.before ? edit.before.toString('base64') : null,
+      afterHash: edit.afterHash,
+    };
     writeFileSync(this.file(chatId, toolId), JSON.stringify(stored), 'utf8');
     this.prune(folder);
   }

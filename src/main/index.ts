@@ -40,7 +40,9 @@ app.on('render-process-gone', (_event, _contents, details) =>
 );
 app.on('child-process-gone', (_event, details) => {
   if (details.reason !== 'clean-exit') {
-    appLog.error('child-process-gone', `A ${details.type} process ended: ${details.reason}`, { exitCode: details.exitCode });
+    appLog.error('child-process-gone', `A ${details.type} process ended: ${details.reason}`, {
+      exitCode: details.exitCode,
+    });
   }
 });
 

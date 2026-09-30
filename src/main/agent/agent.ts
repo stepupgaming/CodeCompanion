@@ -31,6 +31,9 @@ export interface AgentOptions {
   isPreApproved?: (toolName: string, input: unknown) => boolean;
   requestApproval: (id: string, signal: AbortSignal) => Promise<ApprovalDecision>;
   toolContext: (signal: AbortSignal, onProgress: (text: string) => void) => ToolContext;
+  // Called after every tool-result batch is appended to the conversation, so a crash mid-task can be resumed
+  // from the last completed batch instead of losing the whole run.
+  onCheckpoint?: () => void;
   emit: (event: ChatEvent) => void;
   // Called when a tool call is rejected because required fields are missing, so the failure rate can be measured.
   onDroppedFields?: (error: DroppedFieldError) => void;
@@ -89,12 +92,14 @@ export class Agent {
       this.usage.cacheWriteTokens = (this.usage.cacheWriteTokens ?? 0) + (result.usage.cacheWriteTokens ?? 0);
       this.usage.contextTokens = result.contextTokens;
       if (result.usage.longContext) {
-        const long = this.usage.longContext ? { ...this.usage.longContext } : {
-          inputTokens: 0,
-          outputTokens: 0,
-          cacheReadTokens: 0,
-          cacheWriteTokens: 0,
-        };
+        const long = this.usage.longContext
+          ? { ...this.usage.longContext }
+          : {
+              inputTokens: 0,
+              outputTokens: 0,
+              cacheReadTokens: 0,
+              cacheWriteTokens: 0,
+            };
         long.inputTokens += result.usage.inputTokens;
         long.outputTokens += result.usage.outputTokens;
         long.cacheReadTokens += result.usage.cacheReadTokens;
@@ -107,14 +112,22 @@ export class Agent {
         emit({ type: 'notice', id: randomUUID(), text: result.refusal ?? 'The model declined this request.' });
       }
       if (result.stopReason === 'context_exceeded') {
-        emit({ type: 'notice', id: randomUUID(), text: 'The conversation is too long for the model. Start a new chat.' });
+        emit({
+          type: 'notice',
+          id: randomUUID(),
+          text: 'The conversation is too long for the model. Start a new chat.',
+        });
       }
       if (result.stopReason === 'refusal') {
         // Tool calls that came with a refusal are not run, but each still gets a result: the history would otherwise
         // hold a call without one, and every later request in the chat would be rejected.
         if (result.toolCalls.length > 0) {
           conversation.addToolResults(
-            result.toolCalls.map((call) => ({ id: call.id, content: 'Not run: the response was stopped by a refusal.', isError: true })),
+            result.toolCalls.map((call) => ({
+              id: call.id,
+              content: 'Not run: the response was stopped by a refusal.',
+              isError: true,
+            })),
           );
         }
         return false;
@@ -130,6 +143,7 @@ export class Agent {
       const truncated = result.stopReason === 'max_tokens' || result.stopReason === 'context_exceeded';
       const { results, stop } = await this.runTools(tools, result.toolCalls, truncated, signal);
       conversation.addToolResults(results);
+      this.options.onCheckpoint?.();
       if (stop || signal.aborted) return signal.aborted;
     }
 
@@ -214,7 +228,8 @@ export class Agent {
       if (truncated) {
         results.push({
           id: call.id,
-          content: 'Not run: your response hit the output limit and this tool input may be cut off. Retry with smaller changes.',
+          content:
+            'Not run: your response hit the output limit and this tool input may be cut off. Retry with smaller changes.',
           isError: true,
         });
         continue;
@@ -227,7 +242,11 @@ export class Agent {
     return { results, stop };
   }
 
-  private async runTool(tools: AgentTool[], call: ToolCall, signal: AbortSignal): Promise<{ result: ToolResult; declinedWithoutFeedback?: boolean }> {
+  private async runTool(
+    tools: AgentTool[],
+    call: ToolCall,
+    signal: AbortSignal,
+  ): Promise<{ result: ToolResult; declinedWithoutFeedback?: boolean }> {
     const { emit } = this.options;
     const tool = tools.find((candidate) => candidate.name === call.name);
     // Provider IDs pair API results only; compatible servers can reuse them across turns.

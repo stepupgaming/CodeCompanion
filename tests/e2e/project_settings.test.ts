@@ -24,7 +24,9 @@ describe('per-project allow-lists (mock Claude API)', () => {
     running = await launchApp({ PATCH_TEST_ANTHROPIC_URL: await claude.start() });
     await running.page.evaluate(() => window.api.invoke('settings:set-secret', 'anthropicApiKey', 'sk-ant-e2e'));
     // Ask mode, with a global list that allows something else.
-    await running.page.evaluate(() => window.api.invoke('settings:update', { approvalMode: 'ask', allowedCommands: 'git --version' }));
+    await running.page.evaluate(() =>
+      window.api.invoke('settings:update', { approvalMode: 'ask', allowedCommands: 'git --version' }),
+    );
   });
 
   afterAll(async () => {
@@ -55,7 +57,9 @@ describe('per-project allow-lists (mock Claude API)', () => {
     await running.page.evaluate(() => window.api.invoke('chat:new'));
     await running.page.evaluate((text) => window.api.invoke('chat:send', { text }), `Run ${command}`);
     const chat = await waitFor((current) =>
-      current.transcript.some((item) => item.kind === 'tool' && item.name === 'run_command' && item.status !== 'running'),
+      current.transcript.some(
+        (item) => item.kind === 'tool' && item.name === 'run_command' && item.status !== 'running',
+      ),
     );
     const card = chat.transcript.find((item) => item.kind === 'tool' && item.name === 'run_command');
     if (card?.kind === 'tool' && card.status === 'awaiting-approval') {

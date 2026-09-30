@@ -69,7 +69,7 @@ describe('AnthropicConversation', () => {
     conversation.addUserMessage({ text: 'hi' });
     await conversation.runTurn(request());
 
-    const { body, headers } = server.requests[0];
+    const { body, headers } = server.requests[0]!;
     expect(body.thinking).toEqual({ type: 'adaptive', display: 'summarized' });
     expect(body.output_config).toEqual({ effort: 'xhigh' });
     expect(body.context_management).toEqual({ edits: [{ type: 'compact_20260112' }] });
@@ -95,7 +95,7 @@ describe('AnthropicConversation', () => {
     conversation.addUserMessage({ text: 'hi' });
     await conversation.runTurn(request());
 
-    const { body, headers } = server.requests[0];
+    const { body, headers } = server.requests[0]!;
     expect(body.thinking).toBeUndefined();
     expect(body.output_config).toBeUndefined();
     expect(body.context_management).toBeUndefined();
@@ -127,7 +127,7 @@ describe('AnthropicConversation', () => {
     ]);
     await conversation.runTurn(request());
 
-    const second = server.requests[1].body.messages;
+    const second = server.requests[1]!.body.messages;
     expect(second).toHaveLength(3);
     // The assistant turn is sent back exactly as it was returned.
     expect(second[1].role).toBe('assistant');
@@ -147,75 +147,106 @@ describe('AnthropicConversation', () => {
     server.queueSse(anthropicStream([{ type: 'text', text: 'First part' }], 'pause_turn'));
     const compacted = anthropicStream([], 'compaction');
     const block = { type: 'compaction', content: 'Server summary' };
-    compacted.splice(1, 0,
+    compacted.splice(
+      1,
+      0,
       { event: 'content_block_start', data: { type: 'content_block_start', index: 0, content_block: block } },
       { event: 'content_block_stop', data: { type: 'content_block_stop', index: 0 } },
     );
     server.queueSse(compacted);
-    server.queueSse(anthropicStream([
-      { type: 'text', text: 'Final part' },
-      { type: 'tool_use', id: 'toolu_final', name: 'read_file', input: { path: 'final.ts' } },
-    ], 'tool_use'));
+    server.queueSse(
+      anthropicStream(
+        [
+          { type: 'text', text: 'Final part' },
+          { type: 'tool_use', id: 'toolu_final', name: 'read_file', input: { path: 'final.ts' } },
+        ],
+        'tool_use',
+      ),
+    );
     const conversation = new AnthropicConversation(createAnthropicClient('sk-test', baseURL), {
-      model: 'claude-opus-5-5', effort: 'high',
+      model: 'claude-opus-5-5',
+      effort: 'high',
     });
     conversation.addUserMessage({ text: 'Continue the task' });
     const before = structuredClone(conversation.serialize().messages);
-    const result = await conversation.runTurn(request({
-      callbacks: { onText: () => expect(conversation.serialize().messages).toEqual(before) },
-    }));
+    const result = await conversation.runTurn(
+      request({
+        callbacks: { onText: () => expect(conversation.serialize().messages).toEqual(before) },
+      }),
+    );
 
     // Compare to the actual response blocks sent back, without relying on SDK-added optional fields.
-    expect(server.requests[1].body.messages).toMatchObject([...before, {
-      role: 'assistant', content: [{ type: 'text', text: 'First part' }],
-    }]);
-    expect(server.requests[2].body.messages).toEqual([
-      ...server.requests[1].body.messages, { role: 'assistant', content: [block] },
+    expect(server.requests[1]!.body.messages).toMatchObject([
+      ...before,
+      {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'First part' }],
+      },
+    ]);
+    expect(server.requests[2]!.body.messages).toEqual([
+      ...server.requests[1]!.body.messages,
+      { role: 'assistant', content: [block] },
     ]);
     const saved = conversation.serialize().messages;
-    expect(saved.slice(0, 3)).toEqual(server.requests[2].body.messages);
+    expect(saved.slice(0, 3)).toEqual(server.requests[2]!.body.messages);
     expect(saved).toHaveLength(4);
     expect(result.text).toBe('First part\n\nFinal part');
     expect(result.toolCalls).toEqual([{ id: 'toolu_final', name: 'read_file', input: { path: 'final.ts' } }]);
     expect(result.usage).toEqual({ inputTokens: 30, outputTokens: 21, cacheReadTokens: 12, cacheWriteTokens: 9 });
   });
 
-  it.each(['pause_turn', 'compaction'])('discards a %s prefix when its continuation fails, then retries cleanly', async (reason) => {
-    server.queueSse(anthropicStream([{ type: 'text', text: 'Discard this prefix' }], reason));
-    server.queueJson(529, { type: 'error', error: { type: 'overloaded_error', message: 'Try again' } });
-    server.queueSse(anthropicStream([{ type: 'text', text: 'Fresh answer' }], 'end_turn'));
-    const conversation = new AnthropicConversation(createAnthropicClient('sk-test', baseURL), {
-      model: 'claude-opus-5-5', effort: 'high',
-    });
-    conversation.addUserMessage({ text: 'Keep this request' });
-    const before = structuredClone(conversation.serialize());
+  it.each(['pause_turn', 'compaction'])(
+    'discards a %s prefix when its continuation fails, then retries cleanly',
+    async (reason) => {
+      server.queueSse(anthropicStream([{ type: 'text', text: 'Discard this prefix' }], reason));
+      server.queueJson(529, { type: 'error', error: { type: 'overloaded_error', message: 'Try again' } });
+      server.queueSse(anthropicStream([{ type: 'text', text: 'Fresh answer' }], 'end_turn'));
+      const conversation = new AnthropicConversation(createAnthropicClient('sk-test', baseURL), {
+        model: 'claude-opus-5-5',
+        effort: 'high',
+      });
+      conversation.addUserMessage({ text: 'Keep this request' });
+      const before = structuredClone(conversation.serialize());
 
-    await expect(conversation.runTurn(request())).rejects.toThrow(/Try again/);
-    expect(conversation.serialize()).toEqual(before);
-    expect(server.requests[1].body.messages).toHaveLength(2);
-    const result = await conversation.runTurn(request());
-    expect(server.requests[2].body.messages).toEqual(server.requests[0].body.messages);
-    expect(result.text).toBe('Fresh answer');
-    expect(conversation.serialize().messages).toHaveLength(2);
-    expect(JSON.stringify(conversation.serialize())).not.toContain('Discard this prefix');
-  });
+      await expect(conversation.runTurn(request())).rejects.toThrow(/Try again/);
+      expect(conversation.serialize()).toEqual(before);
+      expect(server.requests[1]!.body.messages).toHaveLength(2);
+      const result = await conversation.runTurn(request());
+      expect(server.requests[2]!.body.messages).toEqual(server.requests[0]!.body.messages);
+      expect(result.text).toBe('Fresh answer');
+      expect(conversation.serialize().messages).toHaveLength(2);
+      expect(JSON.stringify(conversation.serialize())).not.toContain('Discard this prefix');
+    },
+  );
 
-  it.each(['pause_turn', 'compaction'])('does not save a %s prefix when the continuation is aborted', async (reason) => {
-    server.queueSse(anthropicStream([{ type: 'text', text: 'Unsaved prefix' }], reason));
-    server.queueSse(anthropicStream([{ type: 'text', text: 'Cancel here' }], 'end_turn'));
-    const conversation = new AnthropicConversation(createAnthropicClient('sk-test', baseURL), {
-      model: 'claude-opus-5-5', effort: 'high',
-    });
-    conversation.addUserMessage({ text: 'Keep this request' });
-    const before = structuredClone(conversation.serialize());
-    const controller = new AbortController();
-    await expect(conversation.runTurn(request({
-      signal: controller.signal,
-      callbacks: { onText: (text) => { if (text === 'Cancel here') controller.abort(); } },
-    }))).rejects.toThrow();
-    expect(server.requests).toHaveLength(2);
-    expect(conversation.serialize()).toEqual(before);
-  });
+  it.each(['pause_turn', 'compaction'])(
+    'does not save a %s prefix when the continuation is aborted',
+    async (reason) => {
+      server.queueSse(anthropicStream([{ type: 'text', text: 'Unsaved prefix' }], reason));
+      server.queueSse(anthropicStream([{ type: 'text', text: 'Cancel here' }], 'end_turn'));
+      const conversation = new AnthropicConversation(createAnthropicClient('sk-test', baseURL), {
+        model: 'claude-opus-5-5',
+        effort: 'high',
+      });
+      conversation.addUserMessage({ text: 'Keep this request' });
+      const before = structuredClone(conversation.serialize());
+      const controller = new AbortController();
+      await expect(
+        conversation.runTurn(
+          request({
+            signal: controller.signal,
+            callbacks: {
+              onText: (text) => {
+                if (text === 'Cancel here') controller.abort();
+              },
+            },
+          }),
+        ),
+      ).rejects.toThrow();
+      expect(server.requests).toHaveLength(2);
+      expect(conversation.serialize()).toEqual(before);
+    },
+  );
 
   it('reports refusals with their explanation', async () => {
     const events = anthropicStream([{ type: 'text', text: '' }], 'refusal');
@@ -243,6 +274,31 @@ describe('AnthropicConversation', () => {
     conversation.addUserMessage({ text: 'hi' });
     await expect(conversation.runTurn(request())).rejects.toThrow(/invalid x-api-key/);
   });
+
+  it('closes tool calls left pending by an interrupted task when the next message is added', async () => {
+    server.queueSse(
+      anthropicStream([{ type: 'tool_use', id: 'toolu_9', name: 'read_file', input: { path: 'a.ts' } }], 'tool_use'),
+    );
+    const conversation = new AnthropicConversation(createAnthropicClient('sk-test', baseURL), {
+      model: 'claude-opus-5-5',
+      effort: 'high',
+    });
+    conversation.addUserMessage({ text: 'Read a.ts' });
+    await conversation.runTurn(request());
+    expect(conversation.hasPendingToolCalls()).toBe(true);
+
+    conversation.addUserMessage({ text: 'Continue.' });
+    expect(conversation.hasPendingToolCalls()).toBe(false);
+    const messages = conversation.serialize().messages as Array<{
+      role: string;
+      content: Array<Record<string, unknown>>;
+    }>;
+    expect(messages.at(-1)).toEqual({ role: 'user', content: [{ type: 'text', text: 'Continue.' }] });
+    const repaired = messages.at(-2)!;
+    expect(repaired.role).toBe('user');
+    expect(repaired.content[0]).toMatchObject({ type: 'tool_result', tool_use_id: 'toolu_9', is_error: true });
+    expect(JSON.stringify(repaired)).toContain('the app was interrupted');
+  });
 });
 
 describe('AnthropicCompletionClient', () => {
@@ -264,7 +320,7 @@ describe('AnthropicCompletionClient', () => {
     await server.stop();
 
     expect(result).toEqual({ title: 'Fix login bug' });
-    const body = server.requests[0].body;
+    const body = server.requests[0]!.body;
     expect(body.output_config.format.type).toBe('json_schema');
     expect(body.tool_choice).toBeUndefined();
   });

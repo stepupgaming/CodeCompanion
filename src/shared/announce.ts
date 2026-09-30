@@ -25,7 +25,10 @@ export function newAnnouncements(items: TranscriptItem[], announced: Set<string>
       case 'assistant': {
         if (item.streaming) break;
         const text = item.text.trim();
-        once(item.id, text ? `Assistant: ${text.length > MAX_SPOKEN_CHARS ? `${text.slice(0, MAX_SPOKEN_CHARS)}…` : text}` : null);
+        once(
+          item.id,
+          text ? `Assistant: ${text.length > MAX_SPOKEN_CHARS ? `${text.slice(0, MAX_SPOKEN_CHARS)}…` : text}` : null,
+        );
         break;
       }
       case 'tool':

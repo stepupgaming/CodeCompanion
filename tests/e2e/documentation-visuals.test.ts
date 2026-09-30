@@ -92,7 +92,9 @@ describe('documentation visuals and text contrast', () => {
     await running.page.getByText('The preview is ready.', { exact: true }).waitFor({ timeout: 30_000 });
     await running.page.getByLabel('Address').fill('https://preview.example.test');
     await running.page.waitForFunction(() =>
-      (document.querySelector('webview') as any)?.executeJavaScript('document.body.innerText').then((text: string) => text.includes('Preview ready')),
+      (document.querySelector('webview') as any)
+        ?.executeJavaScript('document.body.innerText')
+        .then((text: string) => text.includes('Preview ready')),
     );
     await running.page.waitForTimeout(300);
     if (captureDir) {
@@ -119,17 +121,30 @@ describe('documentation visuals and text contrast', () => {
 
   it('meets WCAG AA text contrast in light and dark themes', async () => {
     claude.script(
-      { blocks: [{ type: 'tool_use', id: 'toolu_read', name: 'read_file', input: { path: 'README.md' } }], stopReason: 'tool_use' },
       {
-        blocks: [{ type: 'tool_use', id: 'toolu_contrast', name: 'edit_file', input: { path: 'README.md', old_string: 'small', new_string: 'focused' } }],
+        blocks: [{ type: 'tool_use', id: 'toolu_read', name: 'read_file', input: { path: 'README.md' } }],
+        stopReason: 'tool_use',
+      },
+      {
+        blocks: [
+          {
+            type: 'tool_use',
+            id: 'toolu_contrast',
+            name: 'edit_file',
+            input: { path: 'README.md', old_string: 'small', new_string: 'focused' },
+          },
+        ],
         stopReason: 'tool_use',
       },
     );
     await running.page.evaluate(() => window.api.invoke('chat:send', { text: 'Improve the README description' }));
-    await running.page.locator('.tool-card.awaiting').waitFor({ timeout: 10_000 }).catch(async (error) => {
-      const snapshot = await running.page.evaluate(() => window.api.invoke('chat:snapshot'));
-      throw new Error(`${error.message}\nSnapshot: ${JSON.stringify(snapshot.transcript)}`);
-    });
+    await running.page
+      .locator('.tool-card.awaiting')
+      .waitFor({ timeout: 10_000 })
+      .catch(async (error) => {
+        const snapshot = await running.page.evaluate(() => window.api.invoke('chat:snapshot'));
+        throw new Error(`${error.message}\nSnapshot: ${JSON.stringify(snapshot.transcript)}`);
+      });
 
     for (const theme of ['light', 'dark'] as const) {
       await running.page.mouse.move(0, 0);
@@ -151,17 +166,23 @@ describe('documentation visuals and text contrast', () => {
       const decline = running.page.locator('.tool-card.awaiting .btn-outline-secondary');
       await decline.hover();
       await running.page.waitForTimeout(200);
-      for (const sample of await measureContrast(running, [['decline hover', '.tool-card.awaiting .btn-outline-secondary']])) {
+      for (const sample of await measureContrast(running, [
+        ['decline hover', '.tool-card.awaiting .btn-outline-secondary'],
+      ])) {
         expect(sample.ratio, `${theme} ${sample.name}`).toBeGreaterThanOrEqual(4.5);
       }
       await running.page.mouse.move(0, 0);
       await decline.focus();
       await running.page.waitForTimeout(200);
-      for (const sample of await measureContrast(running, [['decline focus', '.tool-card.awaiting .btn-outline-secondary']])) {
+      for (const sample of await measureContrast(running, [
+        ['decline focus', '.tool-card.awaiting .btn-outline-secondary'],
+      ])) {
         expect(sample.ratio, `${theme} ${sample.name}`).toBeGreaterThanOrEqual(4.5);
       }
       if (process.env.E2E_SCREENSHOTS) {
-        await running.page.locator('.tool-card.awaiting').screenshot({ path: join(process.env.E2E_SCREENSHOTS, `approval-${theme}.png`) });
+        await running.page
+          .locator('.tool-card.awaiting')
+          .screenshot({ path: join(process.env.E2E_SCREENSHOTS, `approval-${theme}.png`) });
       }
     }
   });
@@ -169,19 +190,23 @@ describe('documentation visuals and text contrast', () => {
 
 async function measureContrast(running: RunningApp, targets: [string, string][]): Promise<ContrastSample[]> {
   // Measure settled states, not intermediate colors in Bootstrap's theme/focus transitions.
-  await running.page.waitForFunction(() =>
-    !document.getAnimations().some((animation) => animation instanceof CSSTransition && animation.playState === 'running'),
+  await running.page.waitForFunction(
+    () =>
+      !document
+        .getAnimations()
+        .some((animation) => animation instanceof CSSTransition && animation.playState === 'running'),
   );
   return running.page.evaluate((entries) => {
     const parse = (value: string) => (value.match(/[\d.]+/g) ?? []).map(Number);
     const blend = (foreground: number[], background: number[]) => {
       const alpha = foreground[3] ?? 1;
-      return foreground.slice(0, 3).map((channel, index) => channel * alpha + background[index] * (1 - alpha));
+      return foreground.slice(0, 3).map((channel, index) => channel * alpha + (background[index] ?? 0) * (1 - alpha));
     };
     const background = (element: Element) => {
       let result = [255, 255, 255];
       const layers: number[][] = [];
-      for (let node: Element | null = element; node; node = node.parentElement) layers.push(parse(getComputedStyle(node).backgroundColor));
+      for (let node: Element | null = element; node; node = node.parentElement)
+        layers.push(parse(getComputedStyle(node).backgroundColor));
       for (const layer of layers.reverse()) if (layer.length >= 3) result = blend(layer, result);
       return result;
     };
@@ -190,7 +215,7 @@ async function measureContrast(running: RunningApp, targets: [string, string][])
         const value = channel / 255;
         return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
       });
-      return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+      return 0.2126 * channels[0]! + 0.7152 * channels[1]! + 0.0722 * channels[2]!;
     };
     return entries.map(([name, selector]) => {
       const element = document.querySelector(selector);
@@ -201,7 +226,7 @@ async function measureContrast(running: RunningApp, targets: [string, string][])
       const [lighter, darker] = [luminance(fg), luminance(bg)].sort((a, b) => b - a);
       return {
         name,
-        ratio: (lighter + 0.05) / (darker + 0.05),
+        ratio: (lighter! + 0.05) / (darker! + 0.05),
         foreground: style.color,
         background: style.backgroundColor,
       };

@@ -15,7 +15,9 @@ export const webSearchTool = defineTool({
   requiresApproval: false,
   async run({ query }, context) {
     if (!context.webSearch) {
-      throw new ToolError('Web search is not configured. The user can add a Google API key and search engine id in Settings.');
+      throw new ToolError(
+        'Web search is not configured. The user can add a Google API key and search engine id in Settings.',
+      );
     }
     const url = new URL('https://www.googleapis.com/customsearch/v1');
     url.searchParams.set('key', context.webSearch.googleApiKey);
@@ -28,7 +30,9 @@ export const webSearchTool = defineTool({
     const data = (await response.json()) as { items?: Array<{ title: string; link: string; snippet?: string }> };
     const items = data.items ?? [];
     return {
-      content: items.map((item, i) => `${i + 1}. ${item.title}\n   ${item.link}\n   ${item.snippet ?? ''}`).join('\n') || 'No results.',
+      content:
+        items.map((item, i) => `${i + 1}. ${item.title}\n   ${item.link}\n   ${item.snippet ?? ''}`).join('\n') ||
+        'No results.',
       summary: `Searched the web for "${query}"`,
     };
   },

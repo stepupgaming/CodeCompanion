@@ -50,7 +50,9 @@ describe('side panels', () => {
       await running.page.keyboard.type('Write-Output "terminal-works-$(20+22)"');
     }
     await running.page.keyboard.press('Enter');
-    await running.page.locator('.terminal-panel .xterm-rows', { hasText: 'terminal-works-42' }).waitFor({ timeout: 20_000 });
+    await running.page
+      .locator('.terminal-panel .xterm-rows', { hasText: 'terminal-works-42' })
+      .waitFor({ timeout: 20_000 });
   });
 
   it('moves between panel tabs with the arrow keys and exposes them as tabs', async () => {
@@ -58,11 +60,15 @@ describe('side panels', () => {
     await expect(tabs.count()).resolves.toBe(3);
     await running.page.getByRole('tab', { name: 'Terminal' }).focus();
     await running.page.keyboard.press('ArrowRight');
-    await expect(running.page.getByRole('tab', { name: 'Browser' }).getAttribute('aria-selected')).resolves.toBe('true');
+    await expect(running.page.getByRole('tab', { name: 'Browser' }).getAttribute('aria-selected')).resolves.toBe(
+      'true',
+    );
     await running.page.keyboard.press('End');
     await expect(running.page.getByRole('tab', { name: 'Git' }).getAttribute('aria-selected')).resolves.toBe('true');
     await running.page.keyboard.press('Home');
-    await expect(running.page.getByRole('tab', { name: 'Terminal' }).getAttribute('aria-selected')).resolves.toBe('true');
+    await expect(running.page.getByRole('tab', { name: 'Terminal' }).getAttribute('aria-selected')).resolves.toBe(
+      'true',
+    );
     // Only the selected tab is in the Tab order.
     await expect(running.page.getByRole('tab', { name: 'Git' }).getAttribute('tabindex')).resolves.toBe('-1');
     await expect(running.page.getByRole('tabpanel').count()).resolves.toBeGreaterThan(0);

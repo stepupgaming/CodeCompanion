@@ -6,12 +6,18 @@
   "author": "PierrunoYT <pierrebruno@hotmail.ch>",
   "license": "MIT",
   "main": "out/main/index.js",
+  "engines": {
+    "node": ">=22.12"
+  },
   "scripts": {
     "dev": "electron-vite dev",
     "icons": "node scripts/generate-icons.mjs",
     "build": "electron-vite build",
     "start": "electron-vite build && electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "test": "npm run test:unit && npm run test:e2e",
     "test:unit": "vitest run --project unit --passWithNoTests",
     "test:e2e": "npm run build && vitest run --project e2e",
@@ -20,14 +26,17 @@
     "dist": "node scripts/ensure-closed.mjs && npm run build && electron-builder --publish never"
   },
   "build": {
-    "appId": "patch",
+    "appId": "codecompanion",
     "productName": "Patch",
     "files": [
       "out/**",
       "package.json"
     ],
     "extraResources": [
-      { "from": "build/icon.png", "to": "icon.png" }
+      {
+        "from": "build/icon.png",
+        "to": "icon.png"
+      }
     ],
     "asarUnpack": [
       "node_modules/node-pty/**"
@@ -75,6 +84,7 @@
     }
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@resvg/resvg-js": "^2.6.2",
     "@types/node": "^24.19.0",
     "@xterm/addon-fit": "^0.11.0",
@@ -86,11 +96,16 @@
     "electron": "^44.4.5",
     "electron-builder": "^26.15.3",
     "electron-vite": "^5.0.0",
+    "eslint": "^10.11.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.12.0",
     "highlight.js": "^11.12.0",
     "marked": "^18.0.14",
     "marked-highlight": "^2.2.4",
     "playwright-core": "^1.63.0",
+    "prettier": "^3.9.9",
     "typescript": "^5.9.3",
+    "typescript-eslint": "^8.71.0",
     "vite": "^7.3.6",
     "vitest": "^5.0.2"
   },

@@ -190,7 +190,7 @@ export function limitPreview(preview: ToolPreviewView | undefined): ToolPreviewV
     let kept = Math.min(lines.length, TRANSCRIPT_LIMITS.diffLines);
     let chars = 0;
     for (let index = 0; index < kept; index++) {
-      chars += lines[index].length + 1;
+      chars += (lines[index]?.length ?? 0) + 1;
       if (chars > TRANSCRIPT_LIMITS.diffChars) {
         kept = index;
         break;
@@ -234,7 +234,9 @@ export function applyChatEvent(items: TranscriptItem[], event: ChatEvent): Trans
         item.kind === 'assistant' ? { ...item, text: event.text ?? item.text, streaming: false } : item,
       );
       // Tool-only turns produce no text; drop the empty bubble.
-      return ended.filter((item) => !(item.kind === 'assistant' && item.id === event.id && !item.text && !item.thinking));
+      return ended.filter(
+        (item) => !(item.kind === 'assistant' && item.id === event.id && !item.text && !item.thinking),
+      );
     }
     case 'tool-start':
       return [
@@ -251,7 +253,9 @@ export function applyChatEvent(items: TranscriptItem[], event: ChatEvent): Trans
       return update(event.id, (item) => (item.kind === 'tool' ? { ...item, status: 'running' } : item));
     case 'tool-progress':
       return update(event.id, (item) =>
-        item.kind === 'tool' ? { ...item, ...limitOutput((item.output ?? '') + event.text, item.outputOmittedChars) } : item,
+        item.kind === 'tool'
+          ? { ...item, ...limitOutput((item.output ?? '') + event.text, item.outputOmittedChars) }
+          : item,
       );
     case 'tool-end':
       return update(event.id, (item) =>
@@ -268,7 +272,9 @@ export function applyChatEvent(items: TranscriptItem[], event: ChatEvent): Trans
           : item,
       );
     case 'tool-undone':
-      return update(event.id, (item) => (item.kind === 'tool' && item.undo === 'available' ? { ...item, undo: 'undone' } : item));
+      return update(event.id, (item) =>
+        item.kind === 'tool' && item.undo === 'available' ? { ...item, undo: 'undone' } : item,
+      );
     case 'error':
       return [...items, { kind: 'error', id: event.id, text: event.text }];
     case 'notice':

@@ -16,7 +16,14 @@ export const readFileTool = defineTool({
     path: z.string().describe('File path, relative to the project root.'),
     offset: z.number().int().min(1).optional().describe('First line to read (1-based).'),
     limit: z.number().int().min(1).optional().describe(`Number of lines to read (default ${DEFAULT_READ_LINES}).`),
-    char_offset: z.number().int().min(0).optional().describe('Zero-based UTF-16 code-unit offset within the first requested line (default 0). Use the returned continuation value for an overlong line; subsequent lines start at 0. Must not split a Unicode surrogate pair.'),
+    char_offset: z
+      .number()
+      .int()
+      .min(0)
+      .optional()
+      .describe(
+        'Zero-based UTF-16 code-unit offset within the first requested line (default 0). Use the returned continuation value for an overlong line; subsequent lines start at 0. Must not split a Unicode surrogate pair.',
+      ),
   }),
   requiresApproval: false,
   async run({ path, offset = 1, limit = DEFAULT_READ_LINES, char_offset = 0 }, context) {
@@ -30,7 +37,9 @@ export const readFileTool = defineTool({
     const selected = lines.slice(offset - 1, offset - 1 + limit);
     const first = selected[0] ?? '';
     if (char_offset > first.length || splitsSurrogatePair(first, char_offset)) {
-      throw new ToolError('char_offset must be within the first requested line and must not split a Unicode surrogate pair.');
+      throw new ToolError(
+        'char_offset must be within the first requested line and must not split a Unicode surrogate pair.',
+      );
     }
     if (selected.length > 0) selected[0] = first.slice(char_offset);
     context.readFiles.add(file);
@@ -44,12 +53,18 @@ export const readFileTool = defineTool({
       const nextChar = char_offset + page.text.length - prefixLength;
       notes.push(`Line ${offset} continues. Use offset=${offset} and char_offset=${nextChar} to read more.`);
     } else if (last < lines.length) {
-      const reason = page.lines < selected.length ? ` (cut to fit ${MAX_OUTPUT_CHARS.toLocaleString('en-US')} characters)` : '';
-      notes.push(`Showing lines ${offset}-${last} of ${lines.length}${reason}. Use offset=${last + 1}${char_offset > 0 ? ' and char_offset=0' : ''} to read more.`);
+      const reason =
+        page.lines < selected.length ? ` (cut to fit ${MAX_OUTPUT_CHARS.toLocaleString('en-US')} characters)` : '';
+      notes.push(
+        `Showing lines ${offset}-${last} of ${lines.length}${reason}. Use offset=${last + 1}${char_offset > 0 ? ' and char_offset=0' : ''} to read more.`,
+      );
     }
     return {
       content: page.text + (notes.length > 0 ? `\n\n(${notes.join(' ')})` : ''),
-      summary: page.cutLine || last < lines.length || offset > 1 || char_offset > 0 ? `Read ${rel} (lines ${offset}-${last} of ${lines.length})` : `Read ${rel} (${lines.length} lines)`,
+      summary:
+        page.cutLine || last < lines.length || offset > 1 || char_offset > 0
+          ? `Read ${rel} (lines ${offset}-${last} of ${lines.length})`
+          : `Read ${rel} (${lines.length} lines)`,
       path: rel,
     };
   },
@@ -206,8 +221,9 @@ export function fitLines(lines: string[], budget: number): { text: string; lines
     count++;
   }
   if (count === 0 && lines.length > 0) {
-    const end = splitsSurrogatePair(lines[0], budget) ? budget - 1 : budget;
-    return { text: lines[0].slice(0, end), lines: 1, cutLine: true };
+    const line = lines[0] ?? '';
+    const end = splitsSurrogatePair(line, budget) ? budget - 1 : budget;
+    return { text: line.slice(0, end), lines: 1, cutLine: true };
   }
   return { text: lines.slice(0, count).join('\n'), lines: count, cutLine: false };
 }

@@ -79,19 +79,31 @@ describe('the transcript view (mock Claude API)', () => {
   it('keeps following the bottom when a tall approval card arrives, so Approve is in view', async () => {
     const newLines = Array.from({ length: 60 }, (_, index) => `line ${index}`).join('\n');
     claude.script(
-      { blocks: [{ type: 'tool_use', id: 'read-notes', name: 'read_file', input: { path: 'notes.txt' } }], stopReason: 'tool_use' },
-      { blocks: [{ type: 'tool_use', id: 'tall-edit', name: 'write_file', input: { path: 'notes.txt', content: newLines } }], stopReason: 'tool_use' },
+      {
+        blocks: [{ type: 'tool_use', id: 'read-notes', name: 'read_file', input: { path: 'notes.txt' } }],
+        stopReason: 'tool_use',
+      },
+      {
+        blocks: [
+          { type: 'tool_use', id: 'tall-edit', name: 'write_file', input: { path: 'notes.txt', content: newLines } },
+        ],
+        stopReason: 'tool_use',
+      },
       { blocks: [{ type: 'text', text: 'Written.' }], stopReason: 'end_turn' },
     );
     await running.page.getByLabel('Message', { exact: true }).fill('Rewrite the notes');
     await running.page.getByLabel('Message', { exact: true }).press('Enter');
 
-    const approve = running.page.getByRole('group', { name: /Approval needed/ }).getByRole('button', { name: 'Approve' });
+    const approve = running.page
+      .getByRole('group', { name: /Approval needed/ })
+      .getByRole('button', { name: 'Approve' });
     await approve.waitFor();
     await expect.poll(distanceFromBottom, { timeout: 5_000 }).toBeLessThan(5);
     expect(await approve.isVisible()).toBe(true);
     const box = await approve.boundingBox();
-    const viewport = await running.page.evaluate(() => document.querySelector<HTMLElement>('.chat-scroll-wrap')!.getBoundingClientRect().bottom);
+    const viewport = await running.page.evaluate(
+      () => document.querySelector<HTMLElement>('.chat-scroll-wrap')!.getBoundingClientRect().bottom,
+    );
     expect(box!.y + box!.height).toBeLessThanOrEqual(viewport + 1);
 
     await approve.click();
@@ -106,7 +118,9 @@ describe('the transcript view (mock Claude API)', () => {
 
     await running.page.getByText('Undone', { exact: true }).waitFor();
     await expect
-      .poll(() => running.page.evaluate(() => document.activeElement?.textContent?.trim() ?? document.activeElement?.tagName))
+      .poll(() =>
+        running.page.evaluate(() => document.activeElement?.textContent?.trim() ?? document.activeElement?.tagName),
+      )
       .toBe('Undone');
   });
 });

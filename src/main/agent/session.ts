@@ -85,10 +85,12 @@ export class ChatSession {
     this.createdAt = options.createdAt ?? new Date().toISOString();
     this.updatedAt = this.createdAt;
     this.title = options.title ?? 'New chat';
-    this.transcript = options.transcript ?? [];
+    this.transcript = options.transcript ? closeStaleToolRows(options.transcript) : [];
     this.readFiles = new Set(options.readFiles ?? []);
     this.notes = [...(options.pendingNotes ?? [])];
-    this.resumable = options.resumable ?? false;
+    // A chat whose saved history ends in unanswered tool calls was interrupted by a crash; it resumes like a
+    // user-stopped run.
+    this.resumable = (options.resumable ?? false) || options.conversation.hasPendingToolCalls();
     this.agent = new Agent({
       conversation: options.conversation,
       system: options.system,
@@ -97,6 +99,7 @@ export class ChatSession {
       isPreApproved: options.isPreApproved,
       requestApproval: (id, signal) => this.waitForApproval(id, signal),
       toolContext: (signal, onProgress) => options.toolContext({ signal, onProgress, readFiles: this.readFiles }),
+      onCheckpoint: () => this.options.onChange(true),
       emit: (event) => this.emit(event),
       onDroppedFields: options.onDroppedFields,
       onEditApplied: options.onEditApplied,
@@ -125,8 +128,7 @@ export class ChatSession {
       title: this.title,
       projectPath: this.options.projectPath,
       model: this.options.conversation.model,
-      officialPricing:
-        this.options.officialPricing ?? this.options.conversation.provider === 'anthropic',
+      officialPricing: this.options.officialPricing ?? this.options.conversation.provider === 'anthropic',
       transcript: this.transcript,
       busy: this.busy,
       resumable: this.resumable,
@@ -221,7 +223,11 @@ export class ChatSession {
     this.stopRequested = false;
     this.emit({ type: 'busy', busy: true });
     try {
-      const { summary } = await summarizer.complete(compactionPrompt(plan.text), z.object({ summary: z.string() }), controller.signal);
+      const { summary } = await summarizer.complete(
+        compactionPrompt(plan.text),
+        z.object({ summary: z.string() }),
+        controller.signal,
+      );
       // A stop that came in while the answer was being written wins: nothing is applied.
       if (controller.signal.aborted) throw new DOMException('aborted', 'AbortError');
       conversation.applyCompaction(summary, plan.keepFrom);
@@ -235,7 +241,11 @@ export class ChatSession {
       if (controller.signal.aborted) {
         this.emit({ type: 'notice', id: randomUUID(), text: 'Compacting stopped. The chat is unchanged.' });
       } else {
-        this.emit({ type: 'error', id: randomUUID(), text: `Compacting failed: ${error instanceof Error ? error.message : String(error)}` });
+        this.emit({
+          type: 'error',
+          id: randomUUID(),
+          text: `Compacting failed: ${error instanceof Error ? error.message : String(error)}`,
+        });
       }
     } finally {
       this.controller = null;
@@ -311,7 +321,8 @@ export class ChatSession {
   }
 
   private async generateTitle(firstMessage: string): Promise<void> {
-    const fallback = firstMessage.split(/\s+/).slice(0, 6).join(' ') + (firstMessage.split(/\s+/).length > 6 ? '…' : '');
+    const fallback =
+      firstMessage.split(/\s+/).slice(0, 6).join(' ') + (firstMessage.split(/\s+/).length > 6 ? '…' : '');
     let title = fallback || 'New chat';
     const model = this.options.smallModel(this.options.conversation);
     if (model) {
@@ -334,4 +345,19 @@ export class ChatSession {
     this.title = title;
     this.emit({ type: 'title', title });
   }
+}
+
+// A chat saved while a crash interrupted it can hold tool rows that never finished (the crash happened before
+// their end event was saved). No session is running while a chat is being loaded, so such rows are stale; mark
+// them failed so they do not render as running forever.
+function closeStaleToolRows(items: TranscriptItem[]): TranscriptItem[] {
+  return items.map((item) => {
+    if (item.kind !== 'tool' || (item.status !== 'running' && item.status !== 'awaiting-approval')) return item;
+    return {
+      ...item,
+      status: 'error' as const,
+      summary: `${item.name} was interrupted`,
+      output: item.output ?? 'Interrupted by an app restart before this action finished.',
+    };
+  });
 }

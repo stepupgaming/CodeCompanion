@@ -48,7 +48,11 @@ interface ErrorLike {
 }
 
 // `attempt` counts the retries already made (0 before the first retry). Returns null when the error should be shown.
-export function retryDecision(error: unknown, attempt: number, random: () => number = Math.random): RetryDecision | null {
+export function retryDecision(
+  error: unknown,
+  attempt: number,
+  random: () => number = Math.random,
+): RetryDecision | null {
   if (attempt >= MAX_RETRIES || !isObject(error)) return null;
   if (kind(error) === 'AbortError' || kind(error) === 'APIUserAbortError') return null;
 
@@ -141,7 +145,8 @@ function retryAfterMs(error: ErrorLike): number | null {
 function header(error: ErrorLike, name: string): string | null {
   const headers = error.headers;
   if (!isObject(headers)) return null;
-  const value = typeof headers.get === 'function' ? (headers.get as (key: string) => unknown).call(headers, name) : headers[name];
+  const value =
+    typeof headers.get === 'function' ? (headers.get as (key: string) => unknown).call(headers, name) : headers[name];
   return typeof value === 'string' && value !== '' ? value : null;
 }
 

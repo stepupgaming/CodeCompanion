@@ -15,7 +15,8 @@ export interface TranscriptActions {
 // on the children, which move along; the item elements themselves have none.
 function morph(target: HTMLElement, source: HTMLElement): void {
   for (const { name } of [...target.attributes]) if (!source.hasAttribute(name)) target.removeAttribute(name);
-  for (const { name, value } of [...source.attributes]) if (target.getAttribute(name) !== value) target.setAttribute(name, value);
+  for (const { name, value } of [...source.attributes])
+    if (target.getAttribute(name) !== value) target.setAttribute(name, value);
   target.replaceChildren(...source.childNodes);
 }
 
@@ -58,7 +59,12 @@ export class TranscriptView {
   readonly element = h('div', { class: 'transcript' });
   // Screen-reader only. The transcript itself is not a live region: it is re-rendered on every streamed chunk, which
   // a screen reader would read out again and again. This announces finished answers, approvals and failures once.
-  readonly announcer = h('div', { class: 'visually-hidden', role: 'status', 'aria-live': 'polite', 'aria-atomic': 'false' });
+  readonly announcer = h('div', {
+    class: 'visually-hidden',
+    role: 'status',
+    'aria-live': 'polite',
+    'aria-atomic': 'false',
+  });
   private readonly announced = new Set<string>();
   private primed = false;
   private readonly nodes = new Map<string, { item: TranscriptItem; node: HTMLElement }>();
@@ -73,9 +79,7 @@ export class TranscriptView {
     const last = items[items.length - 1];
     // Always follow when the user just sent a message; otherwise only if already near the bottom.
     const stick =
-      !container ||
-      last?.kind === 'user' ||
-      container.scrollHeight - container.scrollTop - container.clientHeight < 80;
+      !container || last?.kind === 'user' || container.scrollHeight - container.scrollTop - container.clientHeight < 80;
 
     const seen = new Set<string>();
     let previous: HTMLElement | null = null;
@@ -161,9 +165,12 @@ export class TranscriptView {
     this.watchedContainer = container;
     const scrolledByUser = () => {
       cancelAnimationFrame(this.stickFrame);
-      requestAnimationFrame(() => (this.stuck = container.scrollHeight - container.scrollTop - container.clientHeight < 80));
+      requestAnimationFrame(
+        () => (this.stuck = container.scrollHeight - container.scrollTop - container.clientHeight < 80),
+      );
     };
-    for (const type of ['wheel', 'touchmove', 'keydown', 'pointerdown']) container.addEventListener(type, scrolledByUser, { passive: true });
+    for (const type of ['wheel', 'touchmove', 'keydown', 'pointerdown'])
+      container.addEventListener(type, scrolledByUser, { passive: true });
     new ResizeObserver(() => {
       if (this.stuck) container.scrollTop = container.scrollHeight;
     }).observe(container);
@@ -185,7 +192,9 @@ export class TranscriptView {
           'div',
           { class: 'message user', dataset: { id: item.id } },
           h('div', { class: 'bubble' }, item.text),
-          item.imageCount > 0 ? h('div', { class: 'attachments' }, icon('image'), ` ${item.imageCount} image(s)`) : null,
+          item.imageCount > 0
+            ? h('div', { class: 'attachments' }, icon('image'), ` ${item.imageCount} image(s)`)
+            : null,
         );
       case 'assistant':
         return h(
@@ -204,7 +213,13 @@ export class TranscriptView {
       case 'tool':
         return this.renderTool(item);
       case 'error':
-        return h('div', { class: 'message error alert alert-danger py-2', dataset: { id: item.id } }, icon('exclamation-triangle'), ' ', item.text);
+        return h(
+          'div',
+          { class: 'message error alert alert-danger py-2', dataset: { id: item.id } },
+          icon('exclamation-triangle'),
+          ' ',
+          item.text,
+        );
       case 'notice':
         return h('div', { class: 'message notice', dataset: { id: item.id } }, icon('info-circle'), ' ', item.text);
     }
@@ -214,7 +229,11 @@ export class TranscriptView {
     const title = item.summary ?? item.preview?.title ?? item.name.replace(/_/g, ' ');
     const status: Record<typeof item.status, HTMLElement> = {
       'awaiting-approval': h('span', { class: 'badge text-bg-warning' }, 'Needs approval'),
-      running: h('span', { class: 'spinner-border spinner-border-sm text-secondary', role: 'img', 'aria-label': 'Running' }),
+      running: h('span', {
+        class: 'spinner-border spinner-border-sm text-secondary',
+        role: 'img',
+        'aria-label': 'Running',
+      }),
       done: h('span', {}, icon('check2', 'text-success'), h('span', { class: 'visually-hidden' }, 'Done')),
       error: h('span', {}, icon('x-circle', 'text-danger'), h('span', { class: 'visually-hidden' }, 'Failed')),
       declined: h('span', { class: 'badge text-bg-secondary' }, 'Declined'),
@@ -263,16 +282,17 @@ export class TranscriptView {
     );
 
     const preview = () => this.renderPreview(item);
-    const output = () => item.output
-      ? h(
-          'div',
-          {},
-          item.outputOmittedChars
-            ? h('div', { class: 'tool-truncated' }, icon('scissors'), ` ${outputNotice(item.outputOmittedChars)}`)
-            : null,
-          h('pre', { class: 'tool-output' }, item.output),
-        )
-      : null;
+    const output = () =>
+      item.output
+        ? h(
+            'div',
+            {},
+            item.outputOmittedChars
+              ? h('div', { class: 'tool-truncated' }, icon('scissors'), ` ${outputNotice(item.outputOmittedChars)}`)
+              : null,
+            h('pre', { class: 'tool-output' }, item.output),
+          )
+        : null;
 
     if (item.status === 'awaiting-approval') {
       const feedback = h('textarea', {
@@ -281,10 +301,16 @@ export class TranscriptView {
         placeholder: 'Optional: tell the assistant what to do instead',
         'aria-label': 'Optional feedback if you decline',
       });
-      const decide = (approved: boolean) => this.actions.decide(item.id, { approved, feedback: approved ? undefined : feedback.value });
+      const decide = (approved: boolean) =>
+        this.actions.decide(item.id, { approved, feedback: approved ? undefined : feedback.value });
       return h(
         'div',
-        { class: 'tool-card awaiting', role: 'group', 'aria-label': `Approval needed: ${title}`, dataset: { id: item.id } },
+        {
+          class: 'tool-card awaiting',
+          role: 'group',
+          'aria-label': `Approval needed: ${title}`,
+          dataset: { id: item.id },
+        },
         header,
         preview(),
         h(
@@ -316,14 +342,21 @@ export class TranscriptView {
     // Approving a change that is only partly shown needs a clear warning; afterwards a plain note is enough.
     const notice = (text: string) =>
       item.status === 'awaiting-approval'
-        ? h('div', { class: 'alert alert-warning py-1 px-2 mb-1 small', role: 'note' }, icon('exclamation-triangle'), ` ${text}`)
+        ? h(
+            'div',
+            { class: 'alert alert-warning py-1 px-2 mb-1 small', role: 'note' },
+            icon('exclamation-triangle'),
+            ` ${text}`,
+          )
         : h('div', { class: 'tool-truncated' }, icon('scissors'), ` ${text}`);
     if (preview?.diff) {
       return h(
         'div',
         {},
         trustedHtml('div', 'tool-diff', renderDiff(preview.diff, this.actions.theme())),
-        preview.diffOmittedLines ? notice(diffNotice(preview.diffOmittedLines, item.status === 'awaiting-approval')) : null,
+        preview.diffOmittedLines
+          ? notice(diffNotice(preview.diffOmittedLines, item.status === 'awaiting-approval'))
+          : null,
       );
     }
     if (preview?.command) {
@@ -343,10 +376,14 @@ export class TranscriptView {
     const build = typeof content === 'function' ? content : () => [content];
     // The expanded state is noted when the summary is clicked, not only in the later `toggle` event: a streamed frame
     // re-rendering this item in between would otherwise build it with the old state and undo the click.
-    const summaryElement = h('summary', {
-      dataset: { focusKey: 'summary' },
-      onclick: () => (details.open ? this.expanded.delete(id) : this.expanded.add(id)),
-    }, summary);
+    const summaryElement = h(
+      'summary',
+      {
+        dataset: { focusKey: 'summary' },
+        onclick: () => (details.open ? this.expanded.delete(id) : this.expanded.add(id)),
+      },
+      summary,
+    );
     const details = h('details', { open }, summaryElement, ...(open ? build() : []));
     let built = open;
     details.addEventListener('toggle', () => {

@@ -46,7 +46,11 @@ export class AppLog {
 
   private write(level: LogLevel, source: string, problem: unknown, context?: Record<string, unknown>): void {
     const error = problem instanceof Error ? problem : null;
-    const message = error ? `${error.name}: ${error.message}` : typeof problem === 'string' ? problem : safeString(problem);
+    const message = error
+      ? `${error.name}: ${error.message}`
+      : typeof problem === 'string'
+        ? problem
+        : safeString(problem);
     this.log.append({
       level,
       source,
