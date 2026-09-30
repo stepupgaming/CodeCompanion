@@ -1,5 +1,6 @@
 import { readdirSync } from 'node:fs';
 import { basename, join } from 'node:path';
+import { listSkills } from '../tools/skills';
 import type { Workspace } from '../tools/workspace';
 import type { AgentFile } from './agent_file';
 
@@ -41,6 +42,14 @@ export function buildSystemPrompt(input: SystemPromptInput): string {
   }
   if (input.customInstructions.trim()) {
     sections.push(`# Project instructions from the user\n${input.customInstructions.trim()}`);
+  }
+  const skills = listSkills(input.workspace);
+  if (skills.length > 0) {
+    sections.push(
+      `# Project skills\nShort instruction files for recurring tasks, loaded on demand with the load_skill tool. Load the matching skill before doing work it covers:\n${skills
+        .map((skill) => `- ${skill.name}: ${skill.description}`)
+        .join('\n')}`,
+    );
   }
   return sections.join('\n\n');
 }

@@ -10,6 +10,8 @@ Patch's changes are consolidated below as an unreleased baseline, not published 
 
 ### Added
 
+- Project skills: markdown files in `.codecompanion/skills/` are listed (name plus first-line description) in the system prompt and loaded on demand through the new `load_skill` tool, keeping the prompt prefix small and cacheable.
+
 - A `task` tool that delegates research to a read-only subagent: a nested agent with its own context window that can read files, list directories, grep and use semantic code search, but cannot edit, run commands or use the network. Its answer comes back as the tool result and its progress streams into the parent chat.
 
 - Plan mode (Settings, "Propose a plan before multi-step changes"): the agent calls `propose_plan` and the plan appears as an approval card with rendered markdown. Approving lets the work begin; declining sends the feedback back to the model.

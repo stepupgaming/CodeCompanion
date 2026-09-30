@@ -16,6 +16,7 @@ import type { SettingsStore } from './settings';
 import type { EditBackups } from './tools/edit_backups';
 import { availableTools } from './tools/registry';
 import { ShellRunner, shellName } from './tools/shell';
+import { listSkills } from './tools/skills';
 import { createTaskTool } from './tools/task';
 import { confineFileUrl, type BrowserController } from './tools/browser';
 import type { AgentTool, CodeSearch, ToolContext } from './tools/types';
@@ -235,6 +236,7 @@ export class ChatManager {
           googleApiKey && settings.googleSearchEngineId
             ? { googleApiKey, googleSearchEngineId: settings.googleSearchEngineId }
             : null,
+        hasSkills: listSkills(workspace).length > 0,
       };
     };
     const conversation = saved
@@ -256,11 +258,11 @@ export class ChatManager {
     // The subagent tool closes over the chat's conversation factory and system prompt; the nested agent shares
     // the tool list (minus itself, via the read-only filter).
     const sessionTools = () => {
-      const { codeSearch, browser, webSearch } = capabilities();
+      const { codeSearch, browser, webSearch, hasSkills } = capabilities();
       return availableTools(
         { browser, codeSearch: codeSearch?.search ?? null, webSearch },
         [...(codeSearch?.tools ?? []), ...this.deps.mcp.tools(), taskTool],
-        { planMode: this.deps.settings.get().planMode },
+        { planMode: this.deps.settings.get().planMode, skills: hasSkills },
       );
     };
     const taskTool = createTaskTool({

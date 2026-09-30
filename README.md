@@ -18,6 +18,8 @@ The application and installer are named Patch (`Patch.exe` and `Patch-Installer.
 
 - Delegates broad research to a read-only subagent (`task` tool) so the main context stays small; its progress streams into the chat while it works
 
+- Project skills: drop markdown instructions into `.codecompanion/skills/` and the assistant loads the matching one on demand
+
 ## Features
 
 - Chat with Claude (Opus 5.5 by default, Sonnet 5.5, Haiku 4.5), OpenAI GPT-6 (Astra, Sol, Luna) or any OpenAI-compatible endpoint, with streaming answers
